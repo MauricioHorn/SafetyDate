@@ -1,18 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
 import { FlagBadge } from '@/components/FlagBadge';
 import { supabase, Profile, BackgroundCheck } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+import { SosButton } from '../../components/SosButton';
+import { SafetyModeActiveCard } from '../../components/SafetyModeActiveCard';
+import { getActiveSession, SafetySession } from '../../lib/safety';
 
 export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [recentChecks, setRecentChecks] = useState<BackgroundCheck[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeSession, setActiveSession] = useState<SafetySession | null>(null);
 
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -39,6 +43,19 @@ export default function Home() {
     loadData();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const session = await getActiveSession();
+          setActiveSession(session);
+        } catch (error) {
+          console.error('Error loading session:', error);
+        }
+      })();
+    }, [])
+  );
+
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
@@ -55,6 +72,13 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
+        {activeSession && (
+          <SafetyModeActiveCard
+            session={activeSession}
+            onEnded={() => setActiveSession(null)}
+          />
+        )}
+
         {/* Header com saudação */}
         <View style={styles.header}>
           <View>
@@ -115,6 +139,30 @@ export default function Home() {
           </View>
         </Pressable>
 
+        <View style={styles.safetyShortcuts}>
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => router.push('/safety-mode')}
+          >
+            <Text style={styles.shortcutEmoji}>🛡️</Text>
+            <Text style={styles.shortcutTitle}>Safety Mode</Text>
+          </Pressable>
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => router.push('/emergency-contacts')}
+          >
+            <Text style={styles.shortcutEmoji}>👥</Text>
+            <Text style={styles.shortcutTitle}>Contatos</Text>
+          </Pressable>
+          <Pressable
+            style={styles.shortcutCard}
+            onPress={() => router.push('/safe-places')}
+          >
+            <Text style={styles.shortcutEmoji}>📍</Text>
+            <Text style={styles.shortcutTitle}>Locais Seguros</Text>
+          </Pressable>
+        </View>
+
         {/* Histórico recente */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -164,13 +212,16 @@ export default function Home() {
           </View>
         </Card>
       </ScrollView>
+      <View style={styles.sosButtonContainer}>
+        <SosButton />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  scroll: { padding: spacing.lg, paddingBottom: spacing.xxl + 140 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -242,6 +293,30 @@ const styles = StyleSheet.create({
   },
   quickActionTitle: { ...typography.h3, color: colors.text },
   quickActionSubtitle: { ...typography.caption, color: colors.textSecondary },
+  safetyShortcuts: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  shortcutCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  shortcutEmoji: { fontSize: 20 },
+  shortcutTitle: {
+    ...typography.small,
+    color: colors.text,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   section: { marginBottom: spacing.lg },
   sectionHeader: {
     flexDirection: 'row',
@@ -264,4 +339,9 @@ const styles = StyleSheet.create({
   },
   tipTitle: { ...typography.bodyBold, color: colors.text, marginBottom: 2 },
   tipText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
-});
+  sosButtonContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.md,
+  }});

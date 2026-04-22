@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="elasGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF4D7E"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Ícone: silhuetas abraçando formando coração -->
+  <g transform="translate(60, 60)">
+    <!-- Silhueta violeta (esquerda) -->
+    <circle cx="-24" cy="-30" r="13" fill="#A78BFA"/>
+    <path d="M -40 -14 Q -44 -6, -40 6 L -20 32 Q -14 38, -6 35 L 8 24 Q 12 20, 10 14 L 0 -3 Q -10 -14, -24 -14 Z" fill="#A78BFA"/>
+    
+    <!-- Silhueta coral (direita) -->
+    <circle cx="24" cy="-30" r="13" fill="#FF4D7E"/>
+    <path d="M 40 -14 Q 44 -6, 40 6 L 20 32 Q 14 38, 6 35 L -8 24 Q -12 20, -10 14 L 0 -3 Q 10 -14, 24 -14 Z" fill="#FF4D7E"/>
+    
+    <!-- Bolinha do coração (bico) -->
+    <circle cx="0" cy="32" r="3.5" fill="url(#elasGradient)"/>
+  </g>
+</svg>

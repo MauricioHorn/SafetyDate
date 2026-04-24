@@ -1,4 +1,9 @@
 import { supabase } from './supabase';
+import * as Location from 'expo-location';
+import * as Battery from 'expo-battery';
+import NetInfo from '@react-native-community/netinfo';
+import * as SMS from 'expo-sms';
+import { Linking } from 'react-native';
 
 // =====================================================
 // TYPES
@@ -37,6 +42,14 @@ export interface SafetySession {
   battery_level: number | null;
   last_location_update: string;
   is_active: boolean;
+}
+
+export interface LocationData {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  batteryLevel?: number;
+  timestamp: string;
 }
 
 // =====================================================
@@ -280,6 +293,173 @@ export async function recordSosAlert(params: {
     message_sent: params.message,
     contacts_notified: params.contactsNotified,
   });
+}
+
+export async function triggerSOS(): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== 'granted') throw new Error('Location permission denied');
+
+  const gps = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Highest,
+  });
+
+  const batteryRaw = await Battery.getBatteryLevelAsync().catch(() => null);
+  const batteryLevel = batteryRaw !== null ? Math.round(batteryRaw * 100) : undefined;
+
+  const networkState = await NetInfo.fetch();
+  const hasInternet = Boolean(networkState.isConnected && networkState.isInternetReachable !== false);
+
+  const contacts = await getEmergencyContacts();
+  const prioritizedContact = contacts.find((c) => c.is_primary) || contacts[0];
+  const activeSession = await getActiveSession();
+
+  const locationData: LocationData = {
+    latitude: gps.coords.latitude,
+    longitude: gps.coords.longitude,
+    accuracy: gps.coords.accuracy ?? undefined,
+    batteryLevel,
+    timestamp: new Date().toISOString(),
+  };
+
+  const baseMessage =
+    '🚨 EMERGÊNCIA SOS - ELAS\n' +
+    'Preciso de ajuda urgente.\n' +
+    `📍 Localização: https://maps.google.com/?q=${locationData.latitude},${locationData.longitude}\n` +
+    `🕐 ${new Date(locationData.timestamp).toLocaleString('pt-BR')}\n` +
+    `🔋 Bateria: ${locationData.batteryLevel ?? 0}%`;
+
+  const { data: alertData, error: alertError } = await supabase
+    .from('sos_alerts')
+    .insert({
+      user_id: user.id,
+      session_id: activeSession?.id,
+      latitude: locationData.latitude,
+      longitude: locationData.longitude,
+      accuracy_meters: locationData.accuracy,
+      message_sent: baseMessage,
+      contacts_notified: contacts.length,
+      status: 'active',
+      whatsapp_contact_id: prioritizedContact?.id ?? null,
+    })
+    .select('id')
+    .single();
+
+  if (alertError) throw alertError;
+
+  await Promise.all([
+    hasInternet && prioritizedContact
+      ? openWhatsAppPriority(prioritizedContact, locationData)
+      : Promise.resolve(),
+    !hasInternet && contacts.length > 0
+      ? sendSMSFallback(contacts, locationData)
+      : Promise.resolve(),
+  ]);
+
+  return alertData.id;
+}
+
+export async function markAsFalseAlarm(alertId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('sos_alerts')
+    .update({
+      status: 'false_alarm',
+      resolved_at: new Date().toISOString(),
+      resolution_note: 'Foi engano',
+    })
+    .eq('id', alertId)
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+
+  const contacts = await getEmergencyContacts();
+  const prioritizedContact = contacts.find((c) => c.is_primary) || contacts[0];
+
+  if (prioritizedContact) {
+    const fallbackLocation: LocationData = {
+      latitude: 0,
+      longitude: 0,
+      timestamp: new Date().toISOString(),
+    };
+    await openWhatsAppPriority(prioritizedContact, fallbackLocation, true);
+  }
+}
+
+export async function keepAlertActive(alertId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('sos_alerts')
+    .update({ status: 'active', resolution_note: null })
+    .eq('id', alertId)
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+}
+
+export async function sendSMSFallback(
+  contacts: EmergencyContact[],
+  location: LocationData
+): Promise<void> {
+  const canSendSms = await SMS.isAvailableAsync();
+  if (!canSendSms || contacts.length === 0) return;
+
+  const timestamp = new Date(location.timestamp).toLocaleString('pt-BR');
+  const message =
+    '🚨 EMERGÊNCIA SOS - ELAS\n' +
+    'Preciso de ajuda urgente.\n' +
+    `📍 Localização: https://maps.google.com/?q=${location.latitude},${location.longitude}\n` +
+    `🕐 ${timestamp}\n` +
+    `🔋 Bateria: ${location.batteryLevel ?? 0}%`;
+
+  await SMS.sendSMSAsync(
+    contacts.map((contact) => contact.phone),
+    message
+  );
+}
+
+export async function openWhatsAppPriority(
+  contact: EmergencyContact,
+  location: LocationData,
+  calmingMessage = false
+): Promise<void> {
+  const cleanNumber = contact.phone.replace(/\D/g, '');
+  const timestamp = new Date(location.timestamp).toLocaleString('pt-BR');
+  const message = calmingMessage
+    ? 'Oi! Foi um acionamento acidental do SOS, eu estou segura agora. Obrigada por se preocupar.'
+    : '🚨 EMERGÊNCIA SOS - ELAS\n' +
+      'Preciso de ajuda urgente.\n' +
+      `📍 Localização: https://maps.google.com/?q=${location.latitude},${location.longitude}\n` +
+      `🕐 ${timestamp}\n` +
+      `🔋 Bateria: ${location.batteryLevel ?? 0}%`;
+
+  const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+  const canOpen = await Linking.canOpenURL(url);
+  if (!canOpen) return;
+  await Linking.openURL(url);
+}
+
+export async function registerPushToken(token: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('push_tokens')
+    .upsert(
+      {
+        user_id: user.id,
+        expo_push_token: token,
+      },
+      { onConflict: 'expo_push_token' }
+    );
+
+  if (error) throw error;
 }
 
 // =====================================================

@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.safetydate.app",
       "infoPlist": {
         "NSContactsUsageDescription": "SafetyDate precisa acessar seus contatos para o modo de emergência.",
-        "NSLocationWhenInUseUsageDescription": "SafetyDate precisa da sua localização para compartilhar em encontros."
+        "NSLocationWhenInUseUsageDescription": "ELAS precisa da sua localização pra enviar pras amigas em caso de emergência.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com app fechado."
       }
     },
     "android": {
@@ -29,7 +30,10 @@
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
-        "READ_CONTACTS"
+        "ACCESS_COARSE_LOCATION",
+        "READ_CONTACTS",
+        "SEND_SMS",
+        "VIBRATE"
       ]
     },
     "web": {

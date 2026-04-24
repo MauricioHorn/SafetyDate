@@ -62,6 +62,8 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="sos-countdown" />
+        <Stack.Screen name="sos-aftermath" />
         <Stack.Screen name="report/[id]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
       </Stack>

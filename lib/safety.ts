@@ -5,6 +5,39 @@ import NetInfo from '@react-native-community/netinfo';
 import * as SMS from 'expo-sms';
 import { Linking } from 'react-native';
 
+async function invokeSosEdgeFunction(
+  functionName: 'send-sos-push' | 'send-sos-cancel',
+  payload: { alert_id: string; user_id: string }
+): Promise<void> {
+  try {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.warn(`[sos] ${functionName} failed:`, response.status, errorText);
+    }
+  } catch (error) {
+    console.warn(`[sos] ${functionName} failed:`, error);
+  }
+}
+
 // =====================================================
 // TYPES
 // =====================================================
@@ -349,6 +382,11 @@ export async function triggerSOS(): Promise<string> {
 
   if (alertError) throw alertError;
 
+  void invokeSosEdgeFunction('send-sos-push', {
+    alert_id: alertData.id,
+    user_id: user.id,
+  });
+
   await Promise.all([
     hasInternet && prioritizedContact
       ? openWhatsAppPriority(prioritizedContact, locationData)
@@ -376,6 +414,11 @@ export async function markAsFalseAlarm(alertId: string): Promise<void> {
     .eq('user_id', user.id);
 
   if (error) throw error;
+
+  void invokeSosEdgeFunction('send-sos-cancel', {
+    alert_id: alertId,
+    user_id: user.id,
+  });
 
   const contacts = await getEmergencyContacts();
   const prioritizedContact = contacts.find((c) => c.is_primary) || contacts[0];

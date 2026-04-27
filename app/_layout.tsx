@@ -5,6 +5,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { initRevenueCat, logoutRevenueCat } from '@/lib/revenuecat';
+import { registerForPushNotifications } from '@/lib/push-notifications';
 import { colors } from '@/lib/theme';
 import { Session } from '@supabase/supabase-js';
 import { useRouter, useSegments } from 'expo-router';
@@ -15,11 +16,17 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
 
+  async function registerPushIfAuthenticated(nextSession: Session | null) {
+    if (!nextSession?.user) return;
+    await registerForPushNotifications();
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         initRevenueCat(session.user.id);
+        void registerPushIfAuthenticated(session);
       }
       setLoading(false);
     });
@@ -28,6 +35,7 @@ export default function RootLayout() {
       setSession(session);
       if (event === 'SIGNED_IN' && session?.user) {
         initRevenueCat(session.user.id);
+        void registerPushIfAuthenticated(session);
       } else if (event === 'SIGNED_OUT') {
         logoutRevenueCat();
       }

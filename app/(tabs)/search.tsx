@@ -164,10 +164,9 @@ export default function Search() {
           <View style={styles.sources}>
             <Text style={styles.sourcesTitle}>Fontes consultadas:</Text>
             <View style={styles.sourcesList}>
-              <SourceBadge label="CNJ DataJud" />
-              <SourceBadge label="Diário Oficial" />
-              <SourceBadge label="Receita Federal" />
-              <SourceBadge label="Tribunais Estaduais" />
+              <SourceBadge label="CNJ DataJud (Tribunais)" />
+              <SourceBadge label="Diário Oficial da União" />
+              <SourceBadge label="Análise assistida por IA" />
             </View>
           </View>
         </ScrollView>

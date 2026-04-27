@@ -27,7 +27,7 @@ export default function Welcome() {
           <Feature
             icon="search"
             title="Antecedentes em segundos"
-            description="Consulta em dados públicos do CNJ, Diário Oficial e mais"
+            description="Consulta processos públicos no CNJ e publicações no Diário Oficial da União"
           />
           <Feature
             icon="lock-closed"

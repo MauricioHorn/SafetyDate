@@ -127,7 +127,7 @@ export default function Paywall() {
         </View>
 
         <View style={styles.benefits}>
-          <Benefit text="Consulta em dados do CNJ, Diário Oficial e mais" />
+          <Benefit text="Consulta processos públicos no CNJ e publicações no Diário Oficial" />
           <Benefit text="Relatório detalhado com análise de IA" />
           <Benefit text="100% anônimo — ninguém é notificado" />
           <Benefit text="Histórico ilimitado de pesquisas" />

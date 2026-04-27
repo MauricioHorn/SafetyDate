@@ -11,7 +11,6 @@ Plataforma de background check que ajuda mulheres a verificarem antecedentes cri
 - **Fontes de dados:**
   - DataJud (CNJ) — processos judiciais
   - Diário Oficial da União — penalidades administrativas
-  - Receita Federal — validação de CPF
 
 ## Modelo de Negócio
 

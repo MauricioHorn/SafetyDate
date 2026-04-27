@@ -11,8 +11,7 @@
  */
 
 // Chave pública do CNJ (pode ser alterada — sempre verificar wiki)
-const DATAJUD_KEY = Deno.env.get('DATAJUD_API_KEY') ||
-  'cDZHYzlZa0JadVREZDJCendQbXY6QURHcmtpNkdRcGE0WWdHazZmY0Y3Zw==';
+const DATAJUD_KEY = Deno.env.get('DATAJUD_API_KEY');
 
 // Principais tribunais estaduais (cobertura dos maiores estados)
 const TRIBUNAIS_PRINCIPAIS = [

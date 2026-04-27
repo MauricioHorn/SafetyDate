@@ -32,7 +32,7 @@ export default function Report() {
   async function handleShare() {
     if (!report) return;
     await Share.share({
-      message: `Relatório SafetyDate sobre ${report.target_name}\n\nStatus: ${flagLabel(report.flag)}\n\n${report.summary}`,
+      message: `Relatório ELAS sobre ${report.target_name}\n\nStatus: ${flagLabel(report.flag)}\n\n${report.summary}`,
     });
   }
 

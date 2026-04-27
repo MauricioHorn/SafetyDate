@@ -122,7 +122,7 @@ export default function ProfileScreen() {
           <Button label="Sair" variant="secondary" onPress={handleSignOut} />
         </View>
 
-        <Text style={styles.version}>SafetyDate v1.0.0</Text>
+        <Text style={styles.version}>ELAS v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );

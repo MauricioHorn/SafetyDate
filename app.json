@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "SafetyDate",
-    "slug": "safetydate",
+    "name": "ELAS",
+    "slug": "elas",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "safetydate",
+    "scheme": "elas",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
@@ -14,9 +14,9 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.safetydate.app",
+      "bundleIdentifier": "br.com.elasapp.app",
       "infoPlist": {
-        "NSContactsUsageDescription": "SafetyDate precisa acessar seus contatos para o modo de emergência.",
+        "NSContactsUsageDescription": "ELAS precisa acessar seus contatos para avisar sua rede de confiança em emergências.",
         "NSLocationWhenInUseUsageDescription": "ELAS precisa da sua localização pra enviar pras amigas em caso de emergência.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com app fechado."
       }
@@ -26,7 +26,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F0F1A"
       },
-      "package": "com.safetydate.app",
+      "package": "br.com.elasapp.app",
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION",
@@ -38,18 +38,13 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
       "expo-font",
-      [
-        "react-native-purchases",
-        {
-          "usesStoreKit2IfAvailable": true
-        }
-      ]
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

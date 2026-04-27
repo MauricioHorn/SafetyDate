@@ -184,7 +184,7 @@ export default function SafetyModeScreen() {
       if (isAvailable) {
         for (const view of views) {
           const message =
-            `🛡️ SafetyDate\n\n` +
+            `🛡️ ELAS\n\n` +
             `Estou ativando o Safety Mode. Você pode me acompanhar em tempo real aqui:\n\n` +
             `${view.url}\n\n` +
             `O link expira quando eu chegar em um lugar seguro.\n\n` +

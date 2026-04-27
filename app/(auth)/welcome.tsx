@@ -19,10 +19,8 @@ export default function Welcome() {
           <View style={styles.logoCircle}>
             <Ionicons name="shield-checkmark" size={56} color={colors.primary} />
           </View>
-          <Text style={styles.title}>SafetyDate</Text>
-          <Text style={styles.subtitle}>
-            Encontre com confiança.{'\n'}Pesquise antes de confiar.
-          </Text>
+          <Text style={styles.title}>ELAS</Text>
+          <Text style={styles.subtitle}>ELAS protegem ELAS</Text>
         </View>
 
         <View style={styles.features}>

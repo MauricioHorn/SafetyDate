@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSContactsUsageDescription": "ELAS precisa acessar seus contatos para avisar sua rede de confiança em emergências.",
         "NSLocationWhenInUseUsageDescription": "ELAS precisa da sua localização pra enviar pras amigas em caso de emergência.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com app fechado."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com app fechado.",
+        "UIBackgroundModes": ["location", "fetch"]
       }
     },
     "android": {
@@ -31,6 +32,9 @@
         "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "READ_CONTACTS",
         "SEND_SMS",
         "VIBRATE"

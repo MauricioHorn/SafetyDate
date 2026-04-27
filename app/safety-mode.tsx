@@ -29,6 +29,10 @@ import {
   createSessionViews,
   checkArrivalAtSafePlace,
 } from '../lib/safety';
+import {
+  startBackgroundLocationUpdates,
+  stopBackgroundLocationUpdates,
+} from '../lib/background-location';
 
 type Mode = 'idle' | 'starting' | 'active';
 
@@ -40,6 +44,8 @@ export default function SafetyModeScreen() {
   const [activeSession, setActiveSession] = useState<SafetySession | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [currentLocation, setCurrentLocation] = useState<Location.LocationObject | null>(null);
+  const [isBackgroundPermissionGranted, setIsBackgroundPermissionGranted] = useState(false);
+  const [isBackgroundTrackingRunning, setIsBackgroundTrackingRunning] = useState(false);
   const locationWatcher = useRef<Location.LocationSubscription | null>(null);
 
   const load = useCallback(async () => {
@@ -92,6 +98,43 @@ export default function SafetyModeScreen() {
     };
   }, [mode, activeSession?.id]);
 
+  const askLocationPermissionsForSafetyMode = async (): Promise<{
+    foregroundGranted: boolean;
+    backgroundGranted: boolean;
+  }> => {
+    // iOS exige foreground antes de solicitar background.
+    const foreground = await Location.requestForegroundPermissionsAsync();
+    const foregroundGranted = foreground.status === 'granted';
+
+    if (!foregroundGranted) {
+      Alert.alert(
+        'Permissão de localização necessária',
+        'Precisamos da sua localização para ativar o Modo Seguro.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
+        ]
+      );
+      return { foregroundGranted: false, backgroundGranted: false };
+    }
+
+    const background = await Location.requestBackgroundPermissionsAsync();
+    const backgroundGranted = background.status === 'granted';
+
+    if (!backgroundGranted) {
+      Alert.alert(
+        'Modo limitado sem localização em background',
+        'Sem permissão "Sempre", sua localização só atualiza com o app aberto. Você pode continuar assim ou abrir Ajustes.',
+        [
+          { text: 'Continuar limitado', style: 'default' },
+          { text: 'Abrir Ajustes', onPress: () => Linking.openSettings() },
+        ]
+      );
+    }
+
+    return { foregroundGranted: true, backgroundGranted };
+  };
+
   const startWatchingLocation = async (session: SafetySession) => {
     locationWatcher.current = await Location.watchPositionAsync(
       {
@@ -122,6 +165,10 @@ export default function SafetyModeScreen() {
 
         if (arrivedPlace) {
           await endSafetySession(session.id, 'arrived_safe_place', arrivedPlace.id);
+          await stopBackgroundLocationUpdates().catch((error) => {
+            console.error('[safety-mode] failed to stop background updates on arrival:', error);
+          });
+          setIsBackgroundTrackingRunning(false);
           Alert.alert(
             `Bem-vinda${arrivedPlace.name === 'Casa' ? ' em casa' : ''}! 🏠`,
             `Safety Mode encerrado automaticamente. Seus contatos foram avisados que você chegou.`
@@ -155,12 +202,12 @@ export default function SafetyModeScreen() {
     try {
       setMode('starting');
 
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Precisamos da sua localização.');
+      const permissions = await askLocationPermissionsForSafetyMode();
+      if (!permissions.foregroundGranted) {
         setMode('idle');
         return;
       }
+      setIsBackgroundPermissionGranted(permissions.backgroundGranted);
 
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
@@ -176,6 +223,22 @@ export default function SafetyModeScreen() {
         longitude: loc.coords.longitude,
         batteryLevel: battery,
       });
+
+      if (permissions.backgroundGranted) {
+        try {
+          await startBackgroundLocationUpdates(session.id);
+          setIsBackgroundTrackingRunning(true);
+        } catch (bgError) {
+          console.error('[safety-mode] failed to start background updates:', bgError);
+          setIsBackgroundTrackingRunning(false);
+          Alert.alert(
+            'Background não iniciou',
+            'Não conseguimos iniciar rastreamento em background. O modo seguirá limitado ao app aberto.'
+          );
+        }
+      } else {
+        setIsBackgroundTrackingRunning(false);
+      }
 
       const selectedContactObjs = contacts.filter((c) => selectedContacts.includes(c.id));
       const views = await createSessionViews(session.id, selectedContactObjs);
@@ -198,6 +261,10 @@ export default function SafetyModeScreen() {
       setMode('active');
     } catch (error: any) {
       console.error(error);
+      await stopBackgroundLocationUpdates().catch((cleanupError) => {
+        console.error('[safety-mode] cleanup failed after start error:', cleanupError);
+      });
+      setIsBackgroundTrackingRunning(false);
       Alert.alert('Erro', error.message || 'Não foi possível ativar.');
       setMode('idle');
     }
@@ -217,6 +284,10 @@ export default function SafetyModeScreen() {
           onPress: async () => {
             try {
               await endSafetySession(activeSession.id, 'manual');
+              await stopBackgroundLocationUpdates().catch((error) => {
+                console.error('[safety-mode] failed to stop background updates:', error);
+              });
+              setIsBackgroundTrackingRunning(false);
               setActiveSession(null);
               setMode('idle');
               locationWatcher.current?.remove();
@@ -389,6 +460,24 @@ export default function SafetyModeScreen() {
               </Text>
             </View>
 
+            <View
+              style={[
+                styles.trackingStatusCard,
+                isBackgroundTrackingRunning ? styles.trackingStatusOk : styles.trackingStatusLimited,
+              ]}
+            >
+              <Text style={styles.trackingStatusTitle}>
+                {isBackgroundTrackingRunning
+                  ? 'Localização ativa em background'
+                  : 'Modo limitado: localização só com app aberto'}
+              </Text>
+              {!isBackgroundPermissionGranted && (
+                <TouchableOpacity onPress={() => Linking.openSettings()}>
+                  <Text style={styles.trackingStatusLink}>Abrir Ajustes</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
               <Text style={styles.endBtnText}>Encerrar Safety Mode</Text>
             </TouchableOpacity>
@@ -519,6 +608,31 @@ const styles = StyleSheet.create({
   },
   activeTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginBottom: 4 },
   activeSubtitle: { color: '#D1FAE5', fontSize: 13 },
+  trackingStatusCard: {
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  trackingStatusOk: {
+    backgroundColor: 'rgba(255, 77, 126, 0.15)',
+    borderColor: '#FF4D7E',
+  },
+  trackingStatusLimited: {
+    backgroundColor: 'rgba(252, 211, 77, 0.15)',
+    borderColor: '#FCD34D',
+  },
+  trackingStatusTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  trackingStatusLink: {
+    color: '#A78BFA',
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   endBtn: {
     padding: 16,
     borderRadius: 12,

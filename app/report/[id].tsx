@@ -9,9 +9,39 @@ import { FlagBadge } from '@/components/FlagBadge';
 import { supabase, BackgroundCheck } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 
+interface DirectdAddress {
+  cidade?: string;
+  uf?: string;
+}
+
+interface DirectdData {
+  nomeCompleto?: string;
+  dataNascimento?: string;
+  idade?: number;
+  nomeMae?: string;
+  signo?: string;
+  cpf?: string;
+  enderecos?: DirectdAddress[];
+}
+
+type MatchStatus = 'match' | 'mismatch' | 'not_provided' | 'not_available';
+
+type ReportWithDirectd = BackgroundCheck & {
+  search_mode?: 'name_phone' | 'cpf';
+  phone_match_status?: MatchStatus;
+  name_match_status?: MatchStatus;
+  cadastro_validado?: boolean;
+  raw_data?: BackgroundCheck['raw_data'] & {
+    directd?: DirectdData | null;
+    directd_meta?: Record<string, unknown>;
+    phone_crosscheck?: { status?: MatchStatus; [k: string]: unknown };
+    name_crosscheck?: { status?: MatchStatus; [k: string]: unknown };
+  };
+};
+
 export default function Report() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [report, setReport] = useState<BackgroundCheck | null>(null);
+  const [report, setReport] = useState<ReportWithDirectd | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,7 +55,7 @@ export default function Report() {
       .select('*')
       .eq('id', id)
       .single();
-    setReport(data);
+    setReport(data as ReportWithDirectd | null);
     setLoading(false);
   }
 
@@ -65,6 +95,68 @@ export default function Report() {
     red: 'Alertas importantes encontrados',
   };
 
+  const directdData = report.raw_data?.directd;
+  const hasCadastroData = Boolean(
+    directdData && (
+      directdData.nomeCompleto ||
+      directdData.cpf ||
+      directdData.dataNascimento ||
+      directdData.idade
+    )
+  );
+  const officialName = directdData?.nomeCompleto || report.target_name;
+  const primaryAddress = directdData?.enderecos?.[0];
+  const cityUf = [primaryAddress?.cidade, primaryAddress?.uf].filter(Boolean).join(' / ') || '—';
+  const civilStatusPlaceholder = `Não há registro público disponível em ${new Date().toLocaleDateString('pt-BR')}`;
+
+  const phoneStatus =
+    report.phone_match_status ??
+    (report.raw_data?.phone_crosscheck as any)?.status;
+  const nameStatus =
+    report.name_match_status ??
+    (report.raw_data?.name_crosscheck as any)?.status;
+
+  const phoneVerification =
+    phoneStatus === 'match'
+      ? {
+          icon: 'checkmark-circle' as const,
+          text: 'Telefone confere com o cadastro',
+          color: colors.flagGreen,
+          background: colors.flagGreen + '18',
+        }
+      : phoneStatus === 'mismatch'
+      ? {
+          icon: 'warning' as const,
+          text: 'Telefone não corresponde aos registros oficiais associados a essa pessoa',
+          color: colors.flagYellow,
+          background: colors.flagYellow + '18',
+        }
+      : null;
+
+  const nameVerification =
+    nameStatus === 'match'
+      ? {
+          icon: 'checkmark-circle' as const,
+          text: 'Nome confere com o cadastro',
+          color: colors.flagGreen,
+          background: colors.flagGreen + '18',
+        }
+      : nameStatus === 'mismatch'
+      ? {
+          icon: 'warning' as const,
+          text: 'O nome informado não corresponde ao registro oficial deste telefone. Verifique a identidade antes de confiar.',
+          color: colors.flagYellow,
+          background: colors.flagYellow + '18',
+        }
+      : null;
+
+  const verifications = [phoneVerification, nameVerification].filter(Boolean) as Array<{
+    icon: keyof typeof Ionicons.glyphMap;
+    text: string;
+    color: string;
+    background: string;
+  }>;
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -103,25 +195,59 @@ export default function Report() {
           <Text style={styles.heroName}>{report.target_name}</Text>
         </LinearGradient>
 
-        {/* Info básica */}
+        {/* Dados cadastrais */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dados consultados</Text>
+          <Text style={styles.sectionTitle}>Dados Cadastrais</Text>
           <Card>
-            <InfoRow icon="person" label="Nome" value={report.target_name} />
-            {report.target_birth_date && (
-              <InfoRow icon="calendar" label="Nascimento" value={report.target_birth_date} />
+            <Text style={styles.cadastroName}>{officialName}</Text>
+
+            {!hasCadastroData ? (
+              <Text style={styles.cadastroUnavailable}>Dados cadastrais indisponíveis no momento</Text>
+            ) : (
+              <View style={styles.cadastroGrid}>
+                <View style={styles.cadastroRow}>
+                  <CadastroItem label="Data de Nascimento" value={formatBirthDate(directdData?.dataNascimento)} />
+                  <CadastroItem label="Idade" value={directdData?.idade?.toString() || '—'} />
+                </View>
+
+                <View style={styles.cadastroRow}>
+                  <CadastroItem label="Signo" value={directdData?.signo || '—'} />
+                  <View style={styles.cadastroCol} />
+                </View>
+
+                <View style={styles.cadastroRow}>
+                  <CadastroItem label="CPF" value={maskCpf(directdData?.cpf || report.target_cpf || '—')} />
+                  <CadastroItem label="Nome da Mãe" value={maskMotherName(directdData?.nomeMae)} />
+                </View>
+
+                <View style={styles.cadastroFullRow}>
+                  <Text style={styles.cadastroLabel}>Cidade/UF</Text>
+                  <Text style={styles.cadastroValue}>{cityUf}</Text>
+                </View>
+
+                <View style={styles.cadastroFullRow}>
+                  <Text style={styles.cadastroLabel}>Estado Civil</Text>
+                  <Text style={styles.cadastroPlaceholder}>{civilStatusPlaceholder}</Text>
+                </View>
+              </View>
             )}
-            {report.target_cpf && (
-              <InfoRow icon="card" label="CPF" value={maskCpf(report.target_cpf)} />
-            )}
-            <InfoRow
-              icon="time"
-              label="Pesquisa realizada em"
-              value={new Date(report.created_at).toLocaleString('pt-BR')}
-              last
-            />
           </Card>
         </View>
+
+        {/* Verificações */}
+        {verifications.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Verificações</Text>
+            <View style={styles.verificationList}>
+              {verifications.map((item, idx) => (
+                <View key={idx} style={[styles.verificationBadge, { backgroundColor: item.background, borderColor: item.color + '40' }]}>
+                  <Ionicons name={item.icon} size={16} color={item.color} />
+                  <Text style={[styles.verificationText, { color: item.color }]}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Resumo de IA */}
         <View style={styles.section}>
@@ -205,12 +331,11 @@ export default function Report() {
   );
 }
 
-function InfoRow({ icon, label, value, last }: { icon: any; label: string; value: string; last?: boolean }) {
+function CadastroItem({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.infoRow, !last && styles.infoRowBorder]}>
-      <Ionicons name={icon} size={16} color={colors.textMuted} style={{ width: 20 }} />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+    <View style={styles.cadastroCol}>
+      <Text style={styles.cadastroLabel}>{label}</Text>
+      <Text style={styles.cadastroValue}>{value}</Text>
     </View>
   );
 }
@@ -230,7 +355,32 @@ function StatCard({ value, label, icon, color }: { value: string; label: string;
 function maskCpf(cpf: string) {
   const clean = cpf.replace(/\D/g, '');
   if (clean.length !== 11) return cpf;
-  return `${clean.slice(0, 3)}.***.**${clean.slice(9)}`;
+  return `${clean.slice(0, 3)}.XXX.XXX-${clean.slice(9)}`;
+}
+
+function maskMotherName(name?: string) {
+  if (!name?.trim()) return '—';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0];
+
+  const [firstName, ...rest] = parts;
+  const maskedRest = rest.map((part) => {
+    const firstChar = part.charAt(0);
+    const maskSize = Math.max(part.length - 1, 3);
+    return `${firstChar}${'x'.repeat(maskSize)}`;
+  });
+
+  return `${firstName} ${maskedRest.join(' ')}`;
+}
+
+function formatBirthDate(input?: string) {
+  if (!input?.trim()) return '—';
+  const isoLike = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const match = input.trim().match(isoLike);
+  if (match) {
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+  return input;
 }
 
 function flagLabel(flag: 'green' | 'yellow' | 'red') {
@@ -299,15 +449,59 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   aiTagText: { ...typography.small, color: colors.accent, fontWeight: '700' },
-  infoRow: {
+  cadastroName: {
+    ...typography.h3,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  cadastroUnavailable: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  cadastroGrid: {
+    gap: spacing.md,
+  },
+  cadastroRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
+    gap: spacing.md,
+  },
+  cadastroCol: {
+    flex: 1,
+  },
+  cadastroFullRow: {
+    gap: 2,
+  },
+  cadastroLabel: {
+    ...typography.small,
+    color: colors.textMuted,
+  },
+  cadastroValue: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '600',
+  },
+  cadastroPlaceholder: {
+    ...typography.small,
+    color: colors.textSecondary,
+  },
+  verificationList: {
     gap: spacing.sm,
   },
-  infoRowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  infoLabel: { ...typography.caption, color: colors.textSecondary, flex: 1 },
-  infoValue: { ...typography.caption, color: colors.text, fontWeight: '600' },
+  verificationBadge: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
+  verificationText: {
+    ...typography.small,
+    flex: 1,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
   summary: { ...typography.body, color: colors.text, lineHeight: 24 },
   statsGrid: { flexDirection: 'row', gap: spacing.sm },
   statCard: {

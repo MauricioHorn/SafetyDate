@@ -18,9 +18,27 @@ export interface AnaliseIA {
   criminalProcessesCount: number;
 }
 
+export interface AnaliseEnrichment {
+  directdProfile?: {
+    nomeCompleto?: string;
+    dataNascimento?: string;
+    idade?: number;
+    cidade?: string;
+    uf?: string;
+  };
+  phoneCrosscheck?: {
+    status: 'match' | 'mismatch' | 'not_provided' | 'not_available';
+  };
+}
+
 const SYSTEM_PROMPT = `Você é o assistente de análise de segurança do SafetyDate — uma plataforma que ajuda mulheres a verificarem antecedentes antes de encontros, relacionamentos ou contratações.
 
-Sua tarefa: analisar processos judiciais e publicações do Diário Oficial encontrados sobre uma pessoa, e gerar:
+Você vai receber dados de até 3 fontes:
+1) Processos judiciais (CNJ DataJud)
+2) Publicações no Diário Oficial (DOU)
+3) Dados cadastrais básicos de uma base privada de cadastro pessoal (quando disponíveis)
+
+Sua tarefa: analisar os dados recebidos e gerar:
 1. Um RESUMO em português claro, SEM juridiquês, com 3-6 frases
 2. Uma BANDEIRA de risco: green, yellow ou red
 3. A CONTAGEM de processos criminais
@@ -49,7 +67,13 @@ CRITÉRIOS DE BANDEIRA:
 
 IMPORTANTE:
 - Seja objetiva e factual, sem dramatizar
+- Priorize o risco com base em processos judiciais e DOU
+- Se houver dados cadastrais, mencione consistência cadastral apenas se relevante para contexto
+- Se phoneCrosscheck.status = "mismatch", mencione no resumo de forma natural que o telefone informado não foi encontrado nos cadastros públicos da pessoa, sem dramatizar. Use linguagem acessível, não técnica.
+- Divergência de telefone, isoladamente, não deve elevar bandeira por si só
 - NÃO cite nomes de terceiros que aparecem nos processos
+- NÃO mencionar Receita Federal
+- NÃO mencionar óbito
 - Se a pessoa é vítima e não réu, deixe claro
 - Se são processos antigos (>10 anos) e não criminais, contextualize
 - Em caso de poucos dados, diga isso com transparência
@@ -64,7 +88,8 @@ Retorne APENAS um JSON válido no formato:
 export async function analisarComClaude(
   nome: string,
   processos: ProcessoJudicial[],
-  publicacoesDOU: PublicacaoDOU[]
+  publicacoesDOU: PublicacaoDOU[],
+  enrichment?: AnaliseEnrichment
 ): Promise<AnaliseIA> {
   // Se não encontrou nada, retorna verde direto (economiza tokens)
   if (processos.length === 0 && publicacoesDOU.length === 0) {
@@ -93,7 +118,31 @@ export async function analisarComClaude(
     trecho: p.trecho,
   }));
 
+  const cadastroResumo = enrichment?.directdProfile
+    ? {
+        nomeCompleto: enrichment.directdProfile.nomeCompleto,
+        dataNascimento: enrichment.directdProfile.dataNascimento,
+        idade: enrichment.directdProfile.idade,
+        cidade: enrichment.directdProfile.cidade,
+        uf: enrichment.directdProfile.uf,
+      }
+    : null;
+
+  const phoneResumo = enrichment?.phoneCrosscheck
+    ? { status: enrichment.phoneCrosscheck.status }
+    : null;
+
+  const blocoCadastro = cadastroResumo
+    ? `CADASTRO (base privada de cadastro pessoal):\n${JSON.stringify(cadastroResumo, null, 2)}\n`
+    : '';
+
+  const blocoPhone = phoneResumo
+    ? `PHONE CROSSCHECK:\n${JSON.stringify(phoneResumo, null, 2)}\n`
+    : '';
+
   const userMessage = `Analise os dados abaixo sobre a pessoa pesquisada: **${nome}**
+
+${blocoCadastro}${blocoPhone}
 
 PROCESSOS JUDICIAIS ENCONTRADOS (${processos.length} total):
 ${JSON.stringify(processosResumidos, null, 2)}

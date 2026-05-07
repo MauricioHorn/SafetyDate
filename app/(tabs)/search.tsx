@@ -384,82 +384,96 @@ export default function Search() {
         animationType="slide"
         onRequestClose={closeBottomSheet}
       >
-        <Pressable style={styles.modalBackdrop} onPress={closeBottomSheet}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBackdrop}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeBottomSheet} />
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalHandle} />
+            <ScrollView
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.modalHandle} />
 
-            {bottomSheet.type === 'age' && (
-              <>
-                <View style={styles.modalIconWrap}>
-                  <Ionicons name="calendar-outline" size={32} color={colors.primary} />
-                </View>
-                <Text style={styles.modalTitle}>
-                  Mais ou menos quantos anos {(name.trim().split(' ')[0]) || 'essa pessoa'} tem?
-                </Text>
-                <Text style={styles.modalSubtitle}>
-                  {bottomSheet.reason === 'no_intersection'
-                    ? `Encontramos várias pessoas com esse nome. A idade aproximada ajuda a identificar a certa.`
-                    : `Encontramos ${bottomSheet.candidateCount} pessoas com esse nome. Pra escolher a certa, precisamos saber mais ou menos a idade.`}
-                </Text>
-                <Input
-                  label=""
-                  icon="person"
-                  placeholder="Ex: 35"
-                  value={ageInput}
-                  onChangeText={(t) => setAgeInput(t.replace(/\D/g, '').slice(0, 3))}
-                  keyboardType="numeric"
-                  maxLength={3}
-                  autoFocus
-                />
-                <Text style={styles.modalHelpText}>
-                  Não precisa ser exato. Vamos buscar 3 anos pra mais ou pra menos.
-                </Text>
-                <Button label="Continuar pesquisa" onPress={submitAge} loading={loading} />
-                <Pressable onPress={closeBottomSheet} style={styles.modalCancel}>
-                  <Text style={styles.modalCancelText}>Cancelar</Text>
-                </Pressable>
-              </>
-            )}
+              {bottomSheet.type === 'age' && (
+                <>
+                  <View style={styles.modalIconWrap}>
+                    <Ionicons name="calendar-outline" size={32} color={colors.primary} />
+                  </View>
+                  <Text style={styles.modalTitle}>
+                    Mais ou menos quantos anos {(name.trim().split(' ')[0]) || 'essa pessoa'} tem?
+                  </Text>
+                  <Text style={styles.modalSubtitle}>
+                    {bottomSheet.candidateCount > 0
+                      ? `Encontramos ${bottomSheet.candidateCount} pessoas com esse nome. ${bottomSheet.reason === 'no_intersection' ? 'O telefone não ajudou a identificar.' : ''} A idade aproximada vai ajudar a achar a certa.`
+                      : `Encontramos várias pessoas com esse nome. A idade aproximada ajuda a identificar a certa.`}
+                  </Text>
+                  <Input
+                    label=""
+                    icon="person"
+                    placeholder="Ex: 35"
+                    value={ageInput}
+                    onChangeText={(t) => setAgeInput(t.replace(/\D/g, '').slice(0, 3))}
+                    keyboardType="numeric"
+                    maxLength={3}
+                    autoFocus
+                  />
+                  <Text style={styles.modalHelpText}>
+                    Não precisa ser exato. Vamos buscar 3 anos pra mais ou pra menos.
+                  </Text>
+                  <Button label="Continuar pesquisa" onPress={submitAge} loading={loading} />
+                  <Pressable onPress={closeBottomSheet} style={styles.modalCancel}>
+                    <Text style={styles.modalCancelText}>Cancelar</Text>
+                  </Pressable>
+                </>
+              )}
 
-            {bottomSheet.type === 'exact_date' && (
-              <>
-                <View style={styles.modalIconWrap}>
-                  <Ionicons name="calendar" size={32} color={colors.primary} />
-                </View>
-                <Text style={styles.modalTitle}>
-                  Você sabe a data exata de nascimento?
-                </Text>
-                <Text style={styles.modalSubtitle}>
-                  {bottomSheet.reason === 'no_results_after_filter'
-                    ? 'Não encontramos com a idade aproximada. Talvez a idade seja diferente — a data exata resolve.'
-                    : `Ainda temos ${bottomSheet.candidateCount} possíveis. A data exata vai dar match certeiro.`}
-                </Text>
-                <Input
-                  label=""
-                  icon="calendar"
-                  placeholder="DD/MM/AAAA"
-                  value={exactDateInput}
-                  onChangeText={(t) => {
-                    const cleaned = t.replace(/\D/g, '').slice(0, 8);
-                    if (cleaned.length <= 2) setExactDateInput(cleaned);
-                    else if (cleaned.length <= 4) setExactDateInput(`${cleaned.slice(0, 2)}/${cleaned.slice(2)}`);
-                    else setExactDateInput(`${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`);
-                  }}
-                  keyboardType="numeric"
-                  maxLength={10}
-                  autoFocus
-                />
-                <Text style={styles.modalHelpText}>
-                  Se não souber, melhor cancelar e tentar com outros dados.
-                </Text>
-                <Button label="Continuar pesquisa" onPress={submitExactDate} loading={loading} />
-                <Pressable onPress={closeBottomSheet} style={styles.modalCancel}>
-                  <Text style={styles.modalCancelText}>Cancelar</Text>
-                </Pressable>
-              </>
-            )}
+              {bottomSheet.type === 'exact_date' && (
+                <>
+                  <View style={styles.modalIconWrap}>
+                    <Ionicons name="calendar" size={32} color={colors.primary} />
+                  </View>
+                  <Text style={styles.modalTitle}>
+                    Você sabe a data exata de nascimento?
+                  </Text>
+                  <Text style={styles.modalSubtitle}>
+                    {bottomSheet.reason === 'no_results_after_filter'
+                      ? 'Não encontramos com a idade aproximada. Talvez a idade seja diferente — a data exata resolve.'
+                      : `Ainda temos ${bottomSheet.candidateCount} possíveis. A data exata vai dar match certeiro.`}
+                  </Text>
+                  <Input
+                    label=""
+                    icon="calendar"
+                    placeholder="DD/MM/AAAA"
+                    value={exactDateInput}
+                    onChangeText={(t) => {
+                      const cleaned = t.replace(/\D/g, '').slice(0, 8);
+                      if (cleaned.length <= 2) setExactDateInput(cleaned);
+                      else if (cleaned.length <= 4)
+                        setExactDateInput(`${cleaned.slice(0, 2)}/${cleaned.slice(2)}`);
+                      else
+                        setExactDateInput(
+                          `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`,
+                        );
+                    }}
+                    keyboardType="numeric"
+                    maxLength={10}
+                    autoFocus
+                  />
+                  <Text style={styles.modalHelpText}>
+                    Se não souber, melhor cancelar e tentar com outros dados.
+                  </Text>
+                  <Button label="Continuar pesquisa" onPress={submitExactDate} loading={loading} />
+                  <Pressable onPress={closeBottomSheet} style={styles.modalCancel}>
+                    <Text style={styles.modalCancelText}>Cancelar</Text>
+                  </Pressable>
+                </>
+              )}
+            </ScrollView>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -558,6 +572,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
     gap: spacing.md,
+  },
+  modalScrollContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.md,
   },
   modalHandle: {
     width: 40,

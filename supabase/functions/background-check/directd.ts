@@ -11,6 +11,8 @@ const DIRECTD_API_TOKEN = Deno.env.get('DIRECTD_API_TOKEN');
 const CADASTRO_PF_PLUS_URL = 'https://apiv3.directd.com.br/api/CadastroPessoaFisicaPlus';
 const ENRIQUECIMENTO_LEAD_URL = 'https://apiv3.directd.com.br/api/EnriquecimentoLead';
 const ADVANCED_SEARCH_URL = 'https://api.app.directd.com.br/api/AdvancedSearch/FilterNaturalPerson';
+const PROCESSING_IDS_URL = 'https://api.app.directd.com.br/api/AdvancedSearch/ProcessingIds';
+const VIEW_SEARCH_URL = 'https://api.app.directd.com.br/api/AdvancedSearch/ViewSearch';
 const FETCH_TIMEOUT_MS = 15_000;
 
 /** Erros categorizados para logs e raw_data (fluxo principal não deve falhar). */
@@ -94,6 +96,17 @@ export interface PesquisaAvancadaResultado {
 
 function digitsOnly(s: string): string {
   return s.replace(/\D/g, '');
+}
+
+/** Normaliza nome para comparação local (trim, lowercase, remove acentos, colapsa espaços). */
+function normalizarNomeLocal(nome: string): string {
+  if (!nome) return '';
+  return nome
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
 }
 
 /** Valida dígitos verificadores do CPF (11 dígitos). */
@@ -697,6 +710,14 @@ interface FilterNaturalPersonBody {
   dateOfBirthEnd?: string;
 }
 
+/** Converte data ISO (YYYY-MM-DD) para formato BR (DD/MM/YYYY) que a Direct Data espera no body. */
+function isoParaFormatoBR(iso: string): string {
+  // Aceita YYYY-MM-DD, retorna DD/MM/YYYY
+  const m = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return ''; // formato inválido = string vazia (Direct Data aceita campo vazio)
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
 async function chamarFilterNaturalPerson(
   body: FilterNaturalPersonBody,
   logTag: string,
@@ -709,10 +730,22 @@ async function chamarFilterNaturalPerson(
   const token = DIRECTD_API_TOKEN.trim();
   const startedAt = Date.now();
 
-  const cleanBody: Record<string, string> = {};
-  for (const [k, v] of Object.entries(body)) {
-    if (typeof v === 'string' && v.trim()) cleanBody[k] = v.trim();
-  }
+  // Direct Data exige TODOS os 12 campos no body, mesmo vazios.
+  // Datas precisam estar em DD/MM/YYYY (formato BR), não ISO.
+  const fullBody: Record<string, string> = {
+    fullName: (body.fullName ?? '').trim(),
+    motherName: (body.motherName ?? '').trim(),
+    postalCode: (body.postalCode ?? '').trim(),
+    street: (body.street ?? '').trim(),
+    city: (body.city ?? '').trim(),
+    state: (body.state ?? '').trim(),
+    number: (body.number ?? '').trim(),
+    neighborhood: (body.neighborhood ?? '').trim(),
+    email: (body.email ?? '').trim(),
+    phoneNumber: (body.phoneNumber ?? '').trim(),
+    dateOfBirthStart: body.dateOfBirthStart ? isoParaFormatoBR(body.dateOfBirthStart) : '',
+    dateOfBirthEnd: body.dateOfBirthEnd ? isoParaFormatoBR(body.dateOfBirthEnd) : '',
+  };
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -725,14 +758,14 @@ async function chamarFilterNaturalPerson(
         'Content-Type': 'application/json',
         Token: token,
       },
-      body: JSON.stringify(cleanBody),
+      body: JSON.stringify(fullBody),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       const et = classifyHttpError(response.status);
-      console.log(`[${logTag}] HTTP ${response.status} (${et}) — body=${JSON.stringify(cleanBody)}`);
+      console.log(`[${logTag}] HTTP ${response.status} (${et}) — body=${JSON.stringify(fullBody)}`);
       return {
         ok: false,
         candidatos: [],
@@ -787,12 +820,25 @@ async function chamarFilterNaturalPerson(
       })
       .filter((c): c is PesquisaAvancadaCandidato => c !== null);
 
+    let candidatosFiltrados = candidatos;
+    const nomeBuscado = (body.fullName ?? '').trim();
+    if (nomeBuscado) {
+      const palavrasBuscadas = normalizarNomeLocal(nomeBuscado).split(' ').filter(Boolean);
+      candidatosFiltrados = candidatos.filter((c) => {
+        const palavrasCandidato = normalizarNomeLocal(c.fullName).split(' ').filter(Boolean);
+        return palavrasBuscadas.every((p) => palavrasCandidato.includes(p));
+      });
+      if (candidatosFiltrados.length !== candidatos.length) {
+        console.log(`[${logTag}] filtro de nome exato: ${candidatos.length} -> ${candidatosFiltrados.length}`);
+      }
+    }
+
     const elapsed = Date.now() - startedAt;
     console.log(
-      `[${logTag}] ok — numberOfPeople=${numberOfPeople} candidatos=${candidatos.length} elapsedMs=${elapsed}`,
+      `[${logTag}] ok — numberOfPeople=${numberOfPeople} candidatos=${candidatos.length} apos_filtro=${candidatosFiltrados.length} elapsedMs=${elapsed}`,
     );
 
-    return { ok: true, candidatos, numberOfPeople };
+    return { ok: true, candidatos: candidatosFiltrados, numberOfPeople: candidatosFiltrados.length };
   } catch (err) {
     clearTimeout(timeoutId);
     if (err instanceof Error && err.name === 'AbortError') {
@@ -849,4 +895,145 @@ export async function pesquisaAvancadaPorTelefone(
     return { ok: false, candidatos: [], numberOfPeople: 0, errorType: 'parse' };
   }
   return chamarFilterNaturalPerson({ phoneNumber: telLimpo }, 'DirectD-AdvSearch-Tel');
+}
+
+/**
+ * Inicia processamento de IDs de candidatos via Pesquisa Avançada.
+ * Recebe os IDs internos (do FilterNaturalPerson) e retorna um searchUid
+ * que será usado depois pelo viewSearchPorUid para buscar os dados completos.
+ * Custo: GRATUITO (o custo está no ViewSearch, R$ 0,36 por pessoa).
+ */
+export async function processarIdsCandidato(
+  ids: string[],
+  searchName: string = 'ELAS - Background Check',
+): Promise<{ ok: boolean; searchUid?: string; errorType?: DirectdErrorType; statusCode?: number }> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { ok: false, errorType: 'parse' };
+  }
+  if (!DIRECTD_API_TOKEN?.trim()) {
+    console.log('[DirectD-ProcessingIds] DIRECTD_API_TOKEN não configurado');
+    return { ok: false, errorType: 'unknown' };
+  }
+  const token = DIRECTD_API_TOKEN.trim();
+  const body = { listIds: ids, searchName };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(PROCESSING_IDS_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Token: token,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const et = classifyHttpError(response.status);
+      console.log(`[DirectD-ProcessingIds] HTTP ${response.status} (${et})`);
+      return { ok: false, errorType: et, statusCode: response.status };
+    }
+    const rawText = await response.text();
+    let json: unknown;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      console.log('[DirectD-ProcessingIds] resposta não é JSON válido');
+      return { ok: false, errorType: 'parse' };
+    }
+    const obj = asRecord(json) ?? {};
+    const success = obj['success'] === true;
+    const searchUid = pickString(obj, ['searchUid', 'SearchUid', 'searchUId']);
+    if (!success || !searchUid) {
+      const errObj = asRecord(obj['error']);
+      const errMsg = errObj ? pickString(errObj, ['message', 'Message']) : undefined;
+      console.log(`[DirectD-ProcessingIds] success=${success} searchUid=${searchUid} err=${errMsg ?? 'n/a'}`);
+      return { ok: false, errorType: 'http' };
+    }
+    console.log(`[DirectD-ProcessingIds] ok — searchUid=${searchUid}`);
+    return { ok: true, searchUid };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.log('[DirectD-ProcessingIds] timeout');
+      return { ok: false, errorType: 'timeout' };
+    }
+    console.log('[DirectD-ProcessingIds] erro:', err);
+    return { ok: false, errorType: 'unknown' };
+  }
+}
+
+/**
+ * Busca os dados completos de uma pesquisa processada via ProcessingIds.
+ * Recebe o searchUid retornado pelo ProcessingIds e devolve um DirectdLookupResult
+ * com todos os dados do cadastro (CPF aberto, nome, dataNascimento, telefones, enderecos, etc).
+ * Custo: R$ 0,36 por pessoa pesquisada.
+ */
+export async function viewSearchPorUid(
+  searchUid: string,
+): Promise<DirectdLookupResult> {
+  if (!searchUid?.trim()) {
+    return { ok: false, fromCache: false, data: null, errorType: 'parse' };
+  }
+  if (!DIRECTD_API_TOKEN?.trim()) {
+    console.log('[DirectD-ViewSearch] DIRECTD_API_TOKEN não configurado');
+    return { ok: false, fromCache: false, data: null, errorType: 'unknown' };
+  }
+  const token = DIRECTD_API_TOKEN.trim();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(VIEW_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Token: token,
+      },
+      body: JSON.stringify({ searchUid: searchUid.trim() }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const et = classifyHttpError(response.status);
+      console.log(`[DirectD-ViewSearch] HTTP ${response.status} (${et})`);
+      return { ok: false, fromCache: false, data: null, errorType: et, statusCode: response.status };
+    }
+    const rawText = await response.text();
+    let json: unknown;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      console.log('[DirectD-ViewSearch] resposta não é JSON válido');
+      return { ok: false, fromCache: false, data: null, errorType: 'parse' };
+    }
+    const obj = asRecord(json) ?? {};
+    const success = obj['success'] === true;
+    const viewSearchObj = asRecord(obj['viewSearch']);
+    const searchItemsRaw = viewSearchObj && Array.isArray(viewSearchObj['searchItems']) ? viewSearchObj['searchItems'] : [];
+    const firstItem = searchItemsRaw.length > 0 ? asRecord(searchItemsRaw[0]) : null;
+    if (!success || !firstItem) {
+      console.log('[DirectD-ViewSearch] success=false ou sem searchItems');
+      return { ok: false, fromCache: false, data: null, errorType: 'http' };
+    }
+    const returnJson = asRecord(firstItem['returnJson']);
+    const retorno = returnJson ? asRecord(returnJson['retorno']) : null;
+    if (!retorno) {
+      console.log('[DirectD-ViewSearch] sem returnJson.retorno');
+      return { ok: false, fromCache: false, data: null, errorType: 'parse' };
+    }
+    const data = sanitizarDirectdPayload(retorno);
+    console.log(`[DirectD-ViewSearch] ok — nome=${data.nomeCompleto} idade=${data.idade}`);
+    return { ok: true, fromCache: false, data };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.log('[DirectD-ViewSearch] timeout');
+      return { ok: false, fromCache: false, data: null, errorType: 'timeout' };
+    }
+    console.log('[DirectD-ViewSearch] erro:', err);
+    return { ok: false, fromCache: false, data: null, errorType: 'unknown' };
+  }
 }

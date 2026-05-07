@@ -22,8 +22,10 @@ import {
   interseccaoCandidatos,
   normalizarCpf,
   normalizarTelefone,
+  processarIdsCandidato,
   pesquisaAvancadaPorNome,
   pesquisaAvancadaPorTelefone,
+  viewSearchPorUid,
   type DirectdCadastroSanitizado,
   type DirectdLookupResult,
   type PesquisaAvancadaCandidato,
@@ -296,24 +298,30 @@ serve(async (req: Request) => {
           return jsonError(resolucao.message, 502);
         }
 
-        const cpfTemAsterisco = /\*/.test(resolucao.cpf);
-        if (cpfTemAsterisco) {
-          directdResult = {
-            ok: true,
-            fromCache: false,
-            data: cadastroParcialDoCandidato(resolucao.candidato),
-          };
-        } else {
-          const cpfLookup = await buscarCadastroPorCpf(resolucao.cpf);
-          if (cpfLookup.ok && cpfLookup.data) {
-            directdResult = cpfLookup;
+        // Match certeiro. Vai buscar dados completos via ProcessingIds + ViewSearch.
+        const proc = await processarIdsCandidato(
+          [resolucao.candidato.id],
+          `ELAS - ${nomeCompleto}`,
+        );
+        if (proc.ok && proc.searchUid) {
+          const view = await viewSearchPorUid(proc.searchUid);
+          if (view.ok && view.data) {
+            directdResult = view;
           } else {
+            console.log('[BackgroundCheck] viewSearchPorUid falhou — usando cadastro parcial do candidato');
             directdResult = {
               ok: true,
               fromCache: false,
               data: cadastroParcialDoCandidato(resolucao.candidato),
             };
           }
+        } else {
+          console.log('[BackgroundCheck] processarIdsCandidato falhou — usando cadastro parcial do candidato');
+          directdResult = {
+            ok: true,
+            fromCache: false,
+            data: cadastroParcialDoCandidato(resolucao.candidato),
+          };
         }
 
         const nomeJud =

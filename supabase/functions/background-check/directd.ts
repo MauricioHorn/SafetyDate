@@ -823,13 +823,12 @@ async function chamarFilterNaturalPerson(
     let candidatosFiltrados = candidatos;
     const nomeBuscado = (body.fullName ?? '').trim();
     if (nomeBuscado) {
-      const palavrasBuscadas = normalizarNomeLocal(nomeBuscado).split(' ').filter(Boolean);
+      const nomeBuscadoNorm = normalizarNomeLocal(nomeBuscado);
       candidatosFiltrados = candidatos.filter((c) => {
-        const palavrasCandidato = normalizarNomeLocal(c.fullName).split(' ').filter(Boolean);
-        return palavrasBuscadas.every((p) => palavrasCandidato.includes(p));
+        return normalizarNomeLocal(c.fullName) === nomeBuscadoNorm;
       });
       if (candidatosFiltrados.length !== candidatos.length) {
-        console.log(`[${logTag}] filtro de nome exato: ${candidatos.length} -> ${candidatosFiltrados.length}`);
+        console.log(`[${logTag}] filtro de nome estrito: ${candidatos.length} -> ${candidatosFiltrados.length}`);
       }
     }
 
@@ -977,63 +976,123 @@ export async function viewSearchPorUid(
   if (!searchUid?.trim()) {
     return { ok: false, fromCache: false, data: null, errorType: 'parse' };
   }
-  if (!DIRECTD_API_TOKEN?.trim()) {
-    console.log('[DirectD-ViewSearch] DIRECTD_API_TOKEN não configurado');
-    return { ok: false, fromCache: false, data: null, errorType: 'unknown' };
+
+  interface ViewSearchUmaVezResultado {
+    ok: boolean;
+    data?: DirectdCadastroSanitizado;
+    retry: boolean;
+    errorType?: DirectdErrorType;
+    statusCode?: number;
   }
-  const token = DIRECTD_API_TOKEN.trim();
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(VIEW_SEARCH_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Token: token,
-      },
-      body: JSON.stringify({ searchUid: searchUid.trim() }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) {
-      const et = classifyHttpError(response.status);
-      console.log(`[DirectD-ViewSearch] HTTP ${response.status} (${et})`);
-      return { ok: false, fromCache: false, data: null, errorType: et, statusCode: response.status };
+
+  async function chamarViewSearchUmaVez(
+    trimmedSearchUid: string,
+    tentativa: number,
+  ): Promise<ViewSearchUmaVezResultado> {
+    if (!DIRECTD_API_TOKEN?.trim()) {
+      console.log('[DirectD-ViewSearch] DIRECTD_API_TOKEN não configurado');
+      return { ok: false, retry: false, errorType: 'unknown' };
     }
-    const rawText = await response.text();
-    let json: unknown;
+
+    const token = DIRECTD_API_TOKEN.trim();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
     try {
-      json = JSON.parse(rawText);
-    } catch {
-      console.log('[DirectD-ViewSearch] resposta não é JSON válido');
-      return { ok: false, fromCache: false, data: null, errorType: 'parse' };
+      const response = await fetch(VIEW_SEARCH_URL, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Token: token,
+        },
+        body: JSON.stringify({ searchUid: trimmedSearchUid }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const et = classifyHttpError(response.status);
+        console.log(`[DirectD-ViewSearch] tentativa=${tentativa} HTTP ${response.status} (${et})`);
+        return { ok: false, retry: false, errorType: et, statusCode: response.status };
+      }
+
+      const rawText = await response.text();
+      let json: unknown;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        console.log(`[DirectD-ViewSearch] tentativa=${tentativa} resposta não é JSON válido`);
+        return { ok: false, retry: false, errorType: 'parse' };
+      }
+
+      const obj = asRecord(json) ?? {};
+      const success = obj['success'] === true;
+      const viewSearchObj = asRecord(obj['viewSearch']);
+      const searchItemsRaw =
+        viewSearchObj && Array.isArray(viewSearchObj['searchItems']) ? viewSearchObj['searchItems'] : [];
+      const firstItem = searchItemsRaw.length > 0 ? asRecord(searchItemsRaw[0]) : null;
+
+      if (!success || !firstItem) {
+        console.log(
+          `[DirectD-ViewSearch] tentativa=${tentativa} success=false ou sem searchItems — pode ainda estar processando`,
+        );
+        return { ok: false, retry: true };
+      }
+
+      const returnJson = asRecord(firstItem['returnJson']);
+      const retorno = returnJson ? asRecord(returnJson['retorno']) : null;
+      if (!retorno) {
+        console.log(
+          `[DirectD-ViewSearch] tentativa=${tentativa} sem returnJson.retorno — provavelmente ainda processando`,
+        );
+        return { ok: false, retry: true };
+      }
+
+      const data = sanitizarDirectdPayload(retorno);
+      console.log(`[DirectD-ViewSearch] tentativa=${tentativa} ok — nome=${data.nomeCompleto} idade=${data.idade}`);
+      return { ok: true, retry: false, data };
+    } catch (err: unknown) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log(`[DirectD-ViewSearch] tentativa=${tentativa} timeout`);
+        return { ok: false, retry: false, errorType: 'timeout' };
+      }
+      console.log(`[DirectD-ViewSearch] tentativa=${tentativa} erro:`, err);
+      return { ok: false, retry: false, errorType: 'unknown' };
     }
-    const obj = asRecord(json) ?? {};
-    const success = obj['success'] === true;
-    const viewSearchObj = asRecord(obj['viewSearch']);
-    const searchItemsRaw = viewSearchObj && Array.isArray(viewSearchObj['searchItems']) ? viewSearchObj['searchItems'] : [];
-    const firstItem = searchItemsRaw.length > 0 ? asRecord(searchItemsRaw[0]) : null;
-    if (!success || !firstItem) {
-      console.log('[DirectD-ViewSearch] success=false ou sem searchItems');
-      return { ok: false, fromCache: false, data: null, errorType: 'http' };
-    }
-    const returnJson = asRecord(firstItem['returnJson']);
-    const retorno = returnJson ? asRecord(returnJson['retorno']) : null;
-    if (!retorno) {
-      console.log('[DirectD-ViewSearch] sem returnJson.retorno');
-      return { ok: false, fromCache: false, data: null, errorType: 'parse' };
-    }
-    const data = sanitizarDirectdPayload(retorno);
-    console.log(`[DirectD-ViewSearch] ok — nome=${data.nomeCompleto} idade=${data.idade}`);
-    return { ok: true, fromCache: false, data };
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err instanceof Error && err.name === 'AbortError') {
-      console.log('[DirectD-ViewSearch] timeout');
-      return { ok: false, fromCache: false, data: null, errorType: 'timeout' };
-    }
-    console.log('[DirectD-ViewSearch] erro:', err);
-    return { ok: false, fromCache: false, data: null, errorType: 'unknown' };
   }
+
+  const MAX_TENTATIVAS = 5;
+  const ESPERA_MS = 2000;
+  const trimmed = searchUid.trim();
+
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    const resultado = await chamarViewSearchUmaVez(trimmed, tentativa);
+
+    if (resultado.ok && resultado.data) {
+      return { ok: true, fromCache: false, data: resultado.data };
+    }
+
+    if (!resultado.retry) {
+      return {
+        ok: false,
+        fromCache: false,
+        data: null,
+        errorType: resultado.errorType,
+        statusCode: resultado.statusCode,
+      };
+    }
+
+    if (tentativa < MAX_TENTATIVAS) {
+      console.log(
+        `[DirectD-ViewSearch] tentativa ${tentativa}/${MAX_TENTATIVAS} ainda processando — aguardando ${ESPERA_MS}ms`,
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, ESPERA_MS));
+    }
+  }
+
+  console.log(`[DirectD-ViewSearch] esgotadas ${MAX_TENTATIVAS} tentativas — ainda sem returnJson.retorno`);
+  return { ok: false, fromCache: false, data: null, errorType: 'timeout' };
 }

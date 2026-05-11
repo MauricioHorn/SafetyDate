@@ -6,21 +6,12 @@
       <stop offset="100%" stop-color="#A78BFA"/>
     </linearGradient>
   </defs>
-  
-  <!-- Fundo escuro (pra funcionar em abas claras e escuras) -->
   <rect width="64" height="64" rx="14" fill="#0A0A14"/>
-  
-  <!-- Ícone simplificado pra tamanhos pequenos -->
-  <g transform="translate(32, 34)">
-    <!-- Silhueta violeta (esquerda) -->
-    <circle cx="-9" cy="-10" r="5" fill="#A78BFA"/>
-    <path d="M -15 -4 Q -17 -1, -15 3 L -7 13 Q -5 15, -2 14 L 3 9 Q 5 7, 4 5 L 0 -1 Q -4 -4, -9 -4 Z" fill="#A78BFA"/>
-    
-    <!-- Silhueta coral (direita) -->
-    <circle cx="9" cy="-10" r="5" fill="#FF4D7E"/>
-    <path d="M 15 -4 Q 17 -1, 15 3 L 7 13 Q 5 15, 2 14 L -3 9 Q -5 7, -4 5 L 0 -1 Q 4 -4, 9 -4 Z" fill="#FF4D7E"/>
-    
-    <!-- Bolinha central -->
-    <circle cx="0" cy="12" r="1.8" fill="url(#elasGradient)"/>
+  <g transform="translate(32, 36)">
+    <circle cx="-15" cy="-8" r="5" fill="#FF7FA3"/>
+    <circle cx="15" cy="-8" r="5" fill="#A78BFA"/>
+    <circle cx="0" cy="-13" r="7" fill="#FF4D7E"/>
+    <path d="M -9 -4 Q -11 0, -9 7 Q -5 15, 0 16 Q 5 15, 9 7 Q 11 0, 9 -4 Q 4 -6, 0 -6 Q -4 -6, -9 -4 Z" fill="#FF4D7E"/>
+    <circle cx="0" cy="-25" r="2" fill="url(#elasGradient)"/>
   </g>
 </svg>

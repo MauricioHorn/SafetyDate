@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="elasGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF4D7E"/>
+      <stop offset="100%" stop-color="#A78BFA"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="#0A0A14"/>
+  <g transform="translate(512, 580)">
+    <g transform="translate(-220, 30) rotate(-8)">
+      <circle cx="0" cy="-130" r="58" fill="#FF7FA3"/>
+      <path d="M -72 -58 Q -94 -14, -72 58 Q -43 130, 0 144 Q 43 130, 72 58 Q 94 -14, 72 -58 Q 36 -72, 0 -72 Q -36 -72, -72 -58 Z" fill="#FF7FA3"/>
+    </g>
+    <g transform="translate(0, 0)">
+      <circle cx="0" cy="-175" r="87" fill="#FF4D7E"/>
+      <path d="M -101 -72 Q -123 -22, -101 72 Q -65 173, 0 180 Q 65 173, 101 72 Q 123 -22, 101 -72 Q 50 -87, 0 -87 Q -50 -87, -101 -72 Z" fill="#FF4D7E"/>
+    </g>
+    <g transform="translate(220, 30) rotate(8)">
+      <circle cx="0" cy="-130" r="58" fill="#A78BFA"/>
+      <path d="M -72 -58 Q -94 -14, -72 58 Q -43 130, 0 144 Q 43 130, 72 58 Q 94 -14, 72 -58 Q 36 -72, 0 -72 Q -36 -72, -72 -58 Z" fill="#A78BFA"/>
+    </g>
+    <circle cx="0" cy="-318" r="25" fill="url(#elasGradient)"/>
+  </g>
+</svg>

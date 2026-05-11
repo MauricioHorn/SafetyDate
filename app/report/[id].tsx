@@ -9,6 +9,8 @@ import { FlagBadge } from '@/components/FlagBadge';
 import { supabase, BackgroundCheck } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 
+type FlagReason = { texto: string; nivel: 'critico' | 'atencao' | 'positivo' };
+
 interface DirectdAddress {
   cidade?: string;
   uf?: string;
@@ -36,6 +38,7 @@ type ReportWithDirectd = BackgroundCheck & {
     directd_meta?: Record<string, unknown>;
     phone_crosscheck?: { status?: MatchStatus; [k: string]: unknown };
     name_crosscheck?: { status?: MatchStatus; [k: string]: unknown };
+    flag_reasons?: FlagReason[];
   };
 };
 
@@ -96,6 +99,8 @@ export default function Report() {
   };
 
   const directdData = report.raw_data?.directd;
+  const flagReasons = report.raw_data?.flag_reasons;
+  const shouldShowFlagReasons = Boolean(flagReasons && flagReasons.length > 0);
   const hasCadastroData = Boolean(
     directdData && (
       directdData.nomeCompleto ||
@@ -194,6 +199,35 @@ export default function Report() {
           <Text style={styles.heroTitle}>{flagMessages[report.flag]}</Text>
           <Text style={styles.heroName}>{report.target_name}</Text>
         </LinearGradient>
+
+        {/* Por que essa bandeira */}
+        {shouldShowFlagReasons && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Por que essa bandeira</Text>
+            <View style={styles.reasonsContainer}>
+              {flagReasons!.map((m, idx) => {
+                const icon: keyof typeof Ionicons.glyphMap =
+                  m.nivel === 'critico'
+                    ? 'warning'
+                    : m.nivel === 'atencao'
+                    ? 'alert-circle'
+                    : 'checkmark-circle';
+                const color =
+                  m.nivel === 'critico'
+                    ? colors.flagRed
+                    : m.nivel === 'atencao'
+                    ? colors.flagYellow
+                    : colors.flagGreen;
+                return (
+                  <View key={idx} style={styles.reasonRow}>
+                    <Ionicons name={icon} size={18} color={color} />
+                    <Text style={styles.reasonText}>{m.texto}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Dados cadastrais */}
         <View style={styles.section}>
@@ -427,6 +461,24 @@ const styles = StyleSheet.create({
   heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center' },
   heroName: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '600', marginTop: 4 },
   section: { paddingHorizontal: spacing.md, marginBottom: spacing.lg },
+  reasonsContainer: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  reasonRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+  },
+  reasonText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    flex: 1,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',

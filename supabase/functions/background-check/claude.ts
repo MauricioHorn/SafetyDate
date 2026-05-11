@@ -8,6 +8,7 @@
 
 import type { ProcessoJudicial } from './datajud.ts';
 import type { PublicacaoDOU } from './dou.ts';
+import type { Bandeira } from './scoring.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
 const MODEL = 'claude-opus-4-7';
@@ -29,6 +30,7 @@ export interface AnaliseEnrichment {
   phoneCrosscheck?: {
     status: 'match' | 'mismatch' | 'not_provided' | 'not_available';
   };
+  bandeiraJaClassificada?: Bandeira;
 }
 
 const SYSTEM_PROMPT = `Você é o assistente de análise de segurança do SafetyDate — uma plataforma que ajuda mulheres a verificarem antecedentes antes de encontros, relacionamentos ou contratações.
@@ -85,6 +87,34 @@ Retorne APENAS um JSON válido no formato:
   "criminalProcessesCount": número
 }`;
 
+const SYSTEM_PROMPT_COM_BANDEIRA = `Você é o assistente de análise de segurança do SafetyDate.
+
+A bandeira de risco JÁ FOI CLASSIFICADA externamente por um sistema de regras objetivas. Você NÃO decide a cor. Sua tarefa é apenas gerar o RESUMO em português claro (3-6 frases), SEM juridiquês, explicando por que a pessoa caiu nessa bandeira, baseado nos dados recebidos.
+
+Você vai receber:
+1. A bandeira já decidida (green, yellow, red)
+2. Os dados (processos, DOU, cadastro)
+
+REGRAS:
+- Use linguagem acessível, não técnica
+- Foque em explicar O QUE FOI ENCONTRADO de forma factual
+- NÃO contradiga a bandeira já dada
+- NÃO cite nomes de terceiros
+- NÃO mencionar Receita Federal
+- NÃO mencionar óbito (mesmo se a bandeira for red por isso, é o sistema que decide o que mostrar)
+- Se a pessoa é vítima e não réu, deixe claro
+- Em caso de poucos dados, diga isso com transparência
+- Se phoneCrosscheck.status = "mismatch", mencione no resumo de forma natural que o telefone informado não foi encontrado nos cadastros públicos da pessoa, sem dramatizar
+
+Retorne APENAS um JSON válido no formato:
+{
+  "flag": "green" | "yellow" | "red",
+  "summary": "resumo em 3-6 frases explicando a bandeira...",
+  "criminalProcessesCount": número
+}
+
+IMPORTANTE: o campo "flag" deve ser igual à bandeira fornecida. NÃO mude.`;
+
 export async function analisarComClaude(
   nome: string,
   processos: ProcessoJudicial[],
@@ -140,7 +170,11 @@ export async function analisarComClaude(
     ? `PHONE CROSSCHECK:\n${JSON.stringify(phoneResumo, null, 2)}\n`
     : '';
 
-  const userMessage = `Analise os dados abaixo sobre a pessoa pesquisada: **${nome}**
+  const blocoBandeira = enrichment?.bandeiraJaClassificada
+    ? `BANDEIRA JÁ DECIDIDA (sistema de regras): ${enrichment.bandeiraJaClassificada}\n\n`
+    : '';
+
+  const userMessage = `${blocoBandeira}Analise os dados abaixo sobre a pessoa pesquisada: **${nome}**
 
 ${blocoCadastro}${blocoPhone}
 
@@ -163,7 +197,9 @@ Retorne o JSON conforme instruído.`;
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: enrichment?.bandeiraJaClassificada
+          ? SYSTEM_PROMPT_COM_BANDEIRA
+          : SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
       }),
     });

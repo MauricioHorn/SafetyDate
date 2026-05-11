@@ -12,9 +12,13 @@
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { buscarProcessosPorNome, classificarProcesso } from './datajud.ts';
+import { classificarProcesso } from './datajud.ts';
+// NOTA: buscarProcessosPorNome (DataJud) foi desativado temporariamente.
+// A API pública do CNJ não suporta busca por nome de forma confiável.
+// Substituir por outra fonte de dados quando integrar (Direct Data, Escavador, DataLawyer, etc).
 import { buscarNoDOU } from './dou.ts';
 import { analisarComClaude } from './claude.ts';
+import { classificarBandeira } from './scoring.ts';
 import {
   buscarCadastroPorCpf,
   calcularRangeDataPorIdade,
@@ -244,7 +248,7 @@ serve(async (req: Request) => {
     }
 
     let directdResult: DirectdLookupResult | null = null;
-    let processos: Awaited<ReturnType<typeof buscarProcessosPorNome>>;
+    let processos: Parameters<typeof classificarProcesso>[0][];
     let publicacoesDOU: Awaited<ReturnType<typeof buscarNoDOU>>;
 
     if (searchMode === 'name_phone') {
@@ -254,10 +258,9 @@ serve(async (req: Request) => {
           fromCache: true,
           data: cachedDirectd,
         };
-        [processos, publicacoesDOU] = await Promise.all([
-          buscarProcessosPorNome(nomeCompleto, birthDateOpt),
-          buscarNoDOU(nomeCompleto),
-        ]);
+        processos = [];
+        publicacoesDOU = await buscarNoDOU(nomeCompleto);
+        console.log('[BackgroundCheck] DataJud desativado temporariamente — processos=[]');
       } else {
         const resolucao = await resolverCandidatoPorNomeETelefone(
           nomeCompleto,
@@ -326,10 +329,9 @@ serve(async (req: Request) => {
 
         const nomeJud =
           directdResult.data?.nomeCompleto?.trim() || nomeCompleto;
-        [processos, publicacoesDOU] = await Promise.all([
-          buscarProcessosPorNome(nomeJud, birthDateOpt),
-          buscarNoDOU(nomeJud),
-        ]);
+        processos = [];
+        publicacoesDOU = await buscarNoDOU(nomeJud);
+        console.log('[BackgroundCheck] DataJud desativado temporariamente — processos=[]');
       }
     } else {
       const directdPromise: Promise<DirectdLookupResult | null> = cachedDirectd
@@ -350,10 +352,9 @@ serve(async (req: Request) => {
           '[BackgroundCheck] Modo CPF sem nome no cadastro — DataJud/DOU com nome vazio (fail-soft)',
         );
       }
-      [processos, publicacoesDOU] = await Promise.all([
-        buscarProcessosPorNome(nomeJud, undefined),
-        buscarNoDOU(nomeJud),
-      ]);
+      processos = [];
+      publicacoesDOU = await buscarNoDOU(nomeJud);
+      console.log('[BackgroundCheck] DataJud desativado temporariamente — processos=[]');
     }
 
     const directdData = directdResult?.ok ? directdResult.data : null;
@@ -399,6 +400,11 @@ serve(async (req: Request) => {
     );
 
     // 6. Análise via Claude
+    const scoring = classificarBandeira(processos, publicacoesDOU, directdData);
+    console.log(
+      `[BackgroundCheck] Scoring: bandeira=${scoring.bandeira} motivos=${scoring.motivos.length} graves=${scoring.criminaisGravesCount}`,
+    );
+
     const analise = await analisarComClaude(nomeParaClaude, processos, publicacoesDOU, {
       directdProfile: directdData
         ? {
@@ -412,14 +418,17 @@ serve(async (req: Request) => {
       phoneCrosscheck: phoneCrosscheck
         ? { status: phoneCrosscheck.status }
         : undefined,
+      bandeiraJaClassificada: scoring.bandeira,
     });
 
     const criminaisLocal = processos.filter(
       (p) => classificarProcesso(p) === 'criminal',
     ).length;
 
+    const bandeiraFinal = scoring.bandeira;
     const criminaisFinal = Math.max(
       analise.criminalProcessesCount,
+      scoring.criminaisGravesCount,
       criminaisLocal,
     );
 
@@ -441,7 +450,7 @@ serve(async (req: Request) => {
         target_cpf: targetCpf,
         target_birth_date: targetBirth,
         target_phone: targetPhone,
-        flag: analise.flag,
+        flag: bandeiraFinal,
         summary: analise.summary,
         processes_count: processos.length,
         criminal_processes_count: criminaisFinal,
@@ -452,6 +461,7 @@ serve(async (req: Request) => {
           directd_meta: directdMeta,
           phone_crosscheck: phoneCrosscheck,
           name_crosscheck: nameCrosscheck,
+          flag_reasons: scoring.motivos,
         },
       })
       .select()

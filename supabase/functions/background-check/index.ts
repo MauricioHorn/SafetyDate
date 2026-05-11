@@ -84,6 +84,12 @@ interface ResolucaoErro {
 }
 type ResolucaoResultado = ResolucaoMatchSucesso | ResolucaoNeedsInfo | ResolucaoNotFound | ResolucaoErro;
 
+interface BackgroundCheckNamePhoneCacheRow {
+  created_at: string;
+  raw_data: { directd?: unknown } | null | undefined;
+  target_name: string | null;
+}
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -197,9 +203,9 @@ serve(async (req: Request) => {
       `[BackgroundCheck] Modo=${searchMode} — nomeJud inicial=${searchMode === 'name_phone' ? nomeCompleto : '(após DirectD)'}`,
     );
 
-    // 4. Mini-cache 24h Direct Data
+    // 4. Mini-cache 7d Direct Data
     let cachedDirectd: DirectdCadastroSanitizado | null = null;
-    const limite24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const limite7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     try {
       if (searchMode === 'cpf' && cpfNormalizado) {
@@ -207,7 +213,7 @@ serve(async (req: Request) => {
           .from('background_checks')
           .select('created_at, raw_data')
           .eq('target_cpf', cpfNormalizado)
-          .gt('created_at', limite24h)
+          .gt('created_at', limite7d)
           .order('created_at', { ascending: false })
           .limit(1);
 
@@ -217,27 +223,36 @@ serve(async (req: Request) => {
           const rawDirectd = cachedRows?.[0]?.raw_data?.directd;
           if (isDirectdCacheUsable(rawDirectd)) {
             cachedDirectd = rawDirectd as DirectdCadastroSanitizado;
-            console.log('[BackgroundCheck] DirectD cache hit (24h, CPF)');
+            console.log('[BackgroundCheck] DirectD cache hit (7d, CPF)');
           } else if (rawDirectd) {
             console.log('[BackgroundCheck] DirectD cache inválido/corrompido; consultando API');
           }
         }
       } else if (searchMode === 'name_phone' && phoneNormalizado) {
+        const nomeNormalizadoParaCache = normalizarNomeParaCache(nomeCompleto);
         const { data: cachedRows, error: cacheError } = await supabase
           .from('background_checks')
-          .select('created_at, raw_data')
+          .select('created_at, raw_data, target_name')
           .eq('target_phone', phoneNormalizado)
-          .gt('created_at', limite24h)
+          .gt('created_at', limite7d)
           .order('created_at', { ascending: false })
-          .limit(1);
+          .limit(10);
+
+        const cachedRowsTyped = cachedRows as BackgroundCheckNamePhoneCacheRow[] | null;
+
+        // Filtra em memória pra encontrar cache que bata com nome também (normalizado)
+        const cachedRow = cachedRowsTyped?.find((row) => {
+          if (!row.target_name) return false;
+          return normalizarNomeParaCache(row.target_name) === nomeNormalizadoParaCache;
+        });
 
         if (cacheError) {
           console.log('[BackgroundCheck] erro no mini-cache DirectD (telefone):', cacheError);
         } else {
-          const rawDirectd = cachedRows?.[0]?.raw_data?.directd;
+          const rawDirectd = cachedRow?.raw_data?.directd;
           if (isDirectdCacheUsable(rawDirectd)) {
             cachedDirectd = rawDirectd as DirectdCadastroSanitizado;
-            console.log('[BackgroundCheck] DirectD cache hit (24h, telefone)');
+            console.log('[BackgroundCheck] DirectD cache hit (7d, telefone+nome)');
           } else if (rawDirectd) {
             console.log('[BackgroundCheck] DirectD cache inválido/corrompido; consultando API');
           }
@@ -392,7 +407,7 @@ serve(async (req: Request) => {
       ok: Boolean(directdResult?.ok),
       errorType: directdResult?.errorType ?? null,
       statusCode: directdResult?.statusCode ?? null,
-      cacheWindowHours: 24,
+      cacheWindowHours: 168,
     };
 
     console.log(
@@ -676,4 +691,14 @@ function jsonError(message: string, status: number) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status,
   });
+}
+
+function normalizarNomeParaCache(nome: string): string {
+  if (!nome) return '';
+  return nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
 }

@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { triggerSOS } from '@/lib/safety';
+import { colors, radius, spacing } from '@/lib/theme';
 
 const TOTAL_SECONDS = 10;
 
@@ -58,17 +59,19 @@ export default function SosCountdownScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>🚨</Text>
-      <Text style={styles.title}>ALERTA SERA ENVIADO</Text>
-      <Text style={styles.subtitle}>Cancele se foi engano</Text>
+      <Text style={styles.eyebrow}>SOS</Text>
+      <Text style={styles.title}>Acionando emergência</Text>
+      <Text style={styles.subtitle}>ALERTA SERA ENVIADO</Text>
       <Text style={styles.counter}>{Math.max(secondsLeft, 0)}</Text>
+      <Text style={styles.remaining}>segundos para enviar</Text>
       <View style={styles.progressTrack}>
         <View style={[styles.progressBar, { width: `${progress}%` }]} />
       </View>
-      <Text style={styles.remaining}>segundos restantes</Text>
-
+      <Text style={styles.helper}>
+        Solte se foi engano. Suas amigas serão notificadas com sua localização e bateria atual.
+      </Text>
       <Pressable style={styles.cancelButton} onPress={handleCancel} disabled={submitting}>
-        <Text style={styles.cancelText}>CANCELAR</Text>
+        <Text style={styles.cancelText}>Cancelar</Text>
       </Pressable>
     </View>
   );
@@ -77,63 +80,77 @@ export default function SosCountdownScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.lg,
   },
-  emoji: {
-    fontSize: 72,
-    marginBottom: 20,
+  eyebrow: {
+    color: colors.flagRed,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 3,
+    marginBottom: spacing.sm,
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: '900',
+    color: colors.text,
+    fontSize: 26,
+    fontWeight: '700',
     textAlign: 'center',
-    letterSpacing: 0.6,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    marginTop: 12,
-    color: '#FEE2E2',
-    fontSize: 20,
-    fontWeight: '500',
+    color: colors.textSecondary,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: spacing.xl,
   },
   counter: {
-    marginTop: 24,
-    color: '#FFFFFF',
-    fontSize: 140,
+    color: colors.flagRed,
+    fontSize: 120,
     fontWeight: '900',
-    lineHeight: 156,
+    lineHeight: 130,
+    letterSpacing: -4,
+  },
+  remaining: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: 15,
+    marginBottom: spacing.lg,
   },
   progressTrack: {
     width: '100%',
-    height: 12,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 999,
+    height: 6,
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
     overflow: 'hidden',
+    marginBottom: spacing.xl,
   },
   progressBar: {
     height: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.flagRed,
   },
-  remaining: {
-    marginTop: 8,
-    color: '#FEE2E2',
-    fontSize: 16,
+  helper: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
   },
   cancelButton: {
-    marginTop: 42,
     width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 20,
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
   cancelText: {
-    color: '#DC2626',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

@@ -1,42 +1,34 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { Card } from '@/components/Card';
-import { FlagBadge } from '@/components/FlagBadge';
-import { supabase, Profile, BackgroundCheck } from '@/lib/supabase';
-import { colors, spacing, typography, radius } from '@/lib/theme';
-import { SosButton } from '../../components/SosButton';
+import { supabase, Profile } from '@/lib/supabase';
+import { colors, spacing, radius } from '@/lib/theme';
 import { SafetyModeActiveCard } from '../../components/SafetyModeActiveCard';
 import { getActiveSession, SafetySession } from '../../lib/safety';
 
 export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [recentChecks, setRecentChecks] = useState<BackgroundCheck[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [activeSession, setActiveSession] = useState<SafetySession | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const loadData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
 
-    const { data: checksData } = await supabase
-      .from('background_checks')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    setProfile(profileData);
-    setRecentChecks(checksData || []);
+      setProfile(profileData);
+    } finally {
+      setInitialLoadDone(true);
+    }
   };
 
   useEffect(() => {
@@ -45,14 +37,19 @@ export default function Home() {
 
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
       (async () => {
         try {
           const session = await getActiveSession();
-          setActiveSession(session);
-        } catch (error) {
-          console.error('Error loading session:', error);
+          if (!cancelled) setActiveSession(session);
+        } catch (err) {
+          console.error('Erro ao carregar sessão ativa:', err);
+          if (!cancelled) setActiveSession(null);
         }
       })();
+      return () => {
+        cancelled = true;
+      };
     }, [])
   );
 
@@ -63,285 +60,246 @@ export default function Home() {
   };
 
   const firstName = profile?.full_name?.split(' ')[0] || 'você';
-  const isAnnual = profile?.plan === 'annual';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
       >
-        {activeSession && (
-          <SafetyModeActiveCard
-            session={activeSession}
-            onEnded={() => setActiveSession(null)}
-          />
-        )}
-
-        {/* Header com saudação */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Olá,</Text>
             <Text style={styles.name}>{firstName} 👋</Text>
           </View>
-          <Pressable onPress={() => router.push('/(tabs)/profile')} style={styles.avatar}>
-            <Ionicons name="person" size={24} color={colors.primary} />
+          <Pressable onPress={() => router.push('/profile')} accessibilityRole="button">
+            <Ionicons name="person-circle-outline" size={32} color={colors.primary} />
           </Pressable>
         </View>
 
-        {/* Card de plano */}
-        <LinearGradient
-          colors={isAnnual ? [colors.primary, colors.primaryDark] : [colors.surfaceElevated, colors.surface]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.planCard}
-        >
-          <View style={styles.planHeader}>
-            <View style={styles.planBadge}>
-              <Ionicons name={isAnnual ? 'diamond' : 'person'} size={16} color={isAnnual ? '#fff' : colors.primary} />
-              <Text style={[styles.planBadgeText, { color: isAnnual ? '#fff' : colors.primary }]}>
-                {isAnnual ? 'PLANO ANUAL' : 'CONTA GRATUITA'}
-              </Text>
-            </View>
+        {activeSession && (
+          <View style={styles.activeSessionWrapper}>
+            <SafetyModeActiveCard
+              session={activeSession}
+              onEnded={() => setActiveSession(null)}
+            />
           </View>
-          <Text style={[styles.planTitle, { color: isAnnual ? '#fff' : colors.text }]}>
-            {isAnnual ? 'Buscas ilimitadas' : 'Desbloqueie buscas ilimitadas'}
-          </Text>
-          <Text style={[styles.planSubtitle, { color: isAnnual ? 'rgba(255,255,255,0.8)' : colors.textSecondary }]}>
-            {isAnnual
-              ? `${profile?.searches_count || 0} consultas realizadas`
-              : 'Por apenas R$ 97/ano'}
-          </Text>
-          {!isAnnual && (
-            <Pressable onPress={() => router.push('/paywall')} style={styles.planButton}>
-              <Text style={styles.planButtonText}>Ver planos</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-            </Pressable>
-          )}
-        </LinearGradient>
+        )}
 
-        {/* Ação rápida principal */}
-        <Pressable onPress={() => router.push('/(tabs)/search')} style={styles.quickAction}>
-          <LinearGradient
-            colors={[colors.primary + '33', colors.primary + '11']}
-            style={StyleSheet.absoluteFill}
+        <Pressable
+          style={styles.primaryCard}
+          onPress={() => router.push('/(tabs)/search')}
+          accessibilityRole="button"
+        >
+          <Ionicons
+            name="arrow-forward"
+            size={24}
+            color={colors.textOnPrimary}
+            style={styles.primaryCardArrow}
           />
-          <View style={styles.quickActionContent}>
-            <View style={styles.quickActionIcon}>
-              <Ionicons name="search" size={28} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.quickActionTitle}>Nova pesquisa</Text>
-              <Text style={styles.quickActionSubtitle}>Verifique antecedentes em segundos</Text>
-            </View>
-            <Ionicons name="arrow-forward-circle" size={32} color={colors.primary} />
-          </View>
+          <Ionicons name="search" size={32} color={colors.textOnPrimary} />
+          <Text style={styles.primaryCardTitle}>Pesquisar alguém</Text>
+          <Text style={styles.primaryCardSubtitle}>
+            Verificar antecedentes em segundos
+          </Text>
         </Pressable>
 
-        <View style={styles.safetyShortcuts}>
-          <Pressable
-            style={styles.shortcutCard}
-            onPress={() => router.push('/safety-mode')}
-          >
-            <Text style={styles.shortcutEmoji}>🛡️</Text>
-            <Text style={styles.shortcutTitle}>Safety Mode</Text>
-          </Pressable>
-          <Pressable
-            style={styles.shortcutCard}
-            onPress={() => router.push('/emergency-contacts')}
-          >
-            <Text style={styles.shortcutEmoji}>👥</Text>
-            <Text style={styles.shortcutTitle}>Contatos</Text>
-          </Pressable>
-          <Pressable
-            style={styles.shortcutCard}
-            onPress={() => router.push('/safe-places')}
-          >
-            <Text style={styles.shortcutEmoji}>📍</Text>
-            <Text style={styles.shortcutTitle}>Locais Seguros</Text>
-          </Pressable>
-        </View>
-
-        {/* Histórico recente */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Pesquisas recentes</Text>
-            {recentChecks.length > 0 && (
-              <Pressable onPress={() => router.push('/(tabs)/history')}>
-                <Text style={styles.sectionLink}>Ver todas</Text>
-              </Pressable>
-            )}
+        <Pressable
+          style={styles.secondaryActionCard}
+          onPress={() => router.push('/safety-mode')}
+          accessibilityRole="button"
+        >
+          <View style={styles.secondaryActionIcon}>
+            <Ionicons name="shield-half" size={28} color={colors.primary} />
           </View>
-
-          {recentChecks.length === 0 ? (
-            <Card style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
-              <Ionicons name="shield-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyText}>Nenhuma pesquisa ainda</Text>
-              <Text style={styles.emptySubtext}>Faça sua primeira verificação</Text>
-            </Card>
-          ) : (
-            <View style={{ gap: spacing.sm }}>
-              {recentChecks.map((check) => (
-                <Card key={check.id} onPress={() => router.push(`/report/${check.id}`)}>
-                  <View style={styles.checkItem}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.checkName}>{check.target_name}</Text>
-                      <Text style={styles.checkDate}>
-                        {new Date(check.created_at).toLocaleDateString('pt-BR')}
-                      </Text>
-                    </View>
-                    <FlagBadge flag={check.flag} size="sm" />
-                  </View>
-                </Card>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Dica de segurança */}
-        <Card style={styles.tip}>
-          <View style={styles.tipIcon}>
-            <Ionicons name="bulb" size={20} color={colors.flagYellow} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.tipTitle}>Dica de segurança</Text>
-            <Text style={styles.tipText}>
-              Marque encontros em lugares públicos e compartilhe sua localização com uma pessoa de confiança.
+          <View style={styles.secondaryActionText}>
+            <Text style={styles.secondaryActionTitle}>Vou sair agora</Text>
+            <Text style={styles.secondaryActionSubtitle}>
+              Ativar Modo Seguro e compartilhar localização
             </Text>
           </View>
-        </Card>
+          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        </Pressable>
+
+        <View style={styles.secondaryRow}>
+          <Pressable
+            style={styles.secondaryCard}
+            onPress={() => router.push('/emergency-contacts')}
+            accessibilityRole="button"
+          >
+            <Ionicons name="people-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.secondaryCardLabel} numberOfLines={1}>
+              Contatos
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryCard}
+            onPress={() => router.push('/safe-places')}
+            accessibilityRole="button"
+          >
+            <Ionicons name="location-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.secondaryCardLabel} numberOfLines={1}>
+              Lugares Seguros
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* TODO: calcular saídas com Modo Seguro do mês corrente */}
+        <View style={styles.statsCard}>
+          <View style={styles.statsColumn}>
+            <Text style={styles.statsNumber}>
+              {initialLoadDone ? String(profile?.searches_count ?? 0) : '—'}
+            </Text>
+            <Text style={styles.statsLabel}>Pesquisas feitas</Text>
+          </View>
+          <View style={styles.statsDivider} />
+          <View style={styles.statsColumn}>
+            <Text style={styles.statsNumber}>—</Text>
+            <Text style={styles.statsLabel}>Saídas com Modo Seguro</Text>
+          </View>
+        </View>
       </ScrollView>
-      <View style={styles.sosButtonContainer}>
-        <SosButton />
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { padding: spacing.lg, paddingBottom: spacing.xxl + 140 },
+  scroll: {
+    paddingBottom: spacing.xxl,
+    paddingTop: spacing.md,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
-  greeting: { ...typography.body, color: colors.textSecondary },
-  name: { ...typography.h2, color: colors.text },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primarySubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.primary,
+  greeting: {
+    fontSize: 18,
+    color: colors.textSecondary,
   },
-  planCard: {
-    borderRadius: radius.lg,
+  name: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  activeSessionWrapper: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  primaryCard: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.xl,
     padding: spacing.lg,
-    marginBottom: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    minHeight: 130,
+    position: 'relative',
   },
-  planHeader: { flexDirection: 'row', marginBottom: spacing.sm },
-  planBadge: {
+  primaryCardArrow: {
+    position: 'absolute',
+    top: spacing.lg,
+    right: spacing.lg,
+  },
+  primaryCardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.textOnPrimary,
+    marginTop: spacing.sm,
+  },
+  primaryCardSubtitle: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 4,
+  },
+  secondaryActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: radius.full,
-  },
-  planBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  planTitle: { ...typography.h3, marginBottom: 4 },
-  planSubtitle: { ...typography.caption },
-  planButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: spacing.md,
-    backgroundColor: '#fff',
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.full,
-  },
-  planButtonText: { color: colors.primary, fontWeight: '700', fontSize: 13 },
-  quickAction: {
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.primary + '33',
-  },
-  quickActionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
     gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    minHeight: 140,
   },
-  quickActionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  secondaryActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.primarySubtle,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quickActionTitle: { ...typography.h3, color: colors.text },
-  quickActionSubtitle: { ...typography.caption, color: colors.textSecondary },
-  safetyShortcuts: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
+  secondaryActionText: {
+    flex: 1,
   },
-  shortcutCard: {
+  secondaryActionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  secondaryActionSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  secondaryCard: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    minHeight: 110,
   },
-  shortcutEmoji: { fontSize: 20 },
-  shortcutTitle: {
-    ...typography.small,
+  secondaryCardLabel: {
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text,
-    fontWeight: '700',
+    marginTop: spacing.sm,
+  },
+  statsCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  statsColumn: {
+    alignItems: 'center',
+  },
+  statsNumber: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  statsLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 4,
     textAlign: 'center',
   },
-  section: { marginBottom: spacing.lg },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
+  statsDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
   },
-  sectionTitle: { ...typography.h3, color: colors.text },
-  sectionLink: { ...typography.caption, color: colors.primary, fontWeight: '700' },
-  emptyText: { ...typography.bodyBold, color: colors.textSecondary, marginTop: spacing.md },
-  emptySubtext: { ...typography.caption, color: colors.textMuted, marginTop: 4 },
-  checkItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  checkName: { ...typography.bodyBold, color: colors.text, marginBottom: 2 },
-  checkDate: { ...typography.small, color: colors.textMuted },
-  tip: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
-  tipIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: colors.flagYellowBg,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  tipTitle: { ...typography.bodyBold, color: colors.text, marginBottom: 2 },
-  tipText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
-  sosButtonContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: spacing.md,
-  }});
+});

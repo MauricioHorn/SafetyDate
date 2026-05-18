@@ -13,6 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Stack, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   EmergencyContact,
@@ -139,9 +140,10 @@ export default function EmergencyContactsScreen() {
   }
 
   return (
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
+      style={{ flex: 1 }}
     >
       <Stack.Screen
         options={{
@@ -305,6 +307,7 @@ export default function EmergencyContactsScreen() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 

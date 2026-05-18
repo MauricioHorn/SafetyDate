@@ -367,14 +367,9 @@ export default function Search() {
             />
           </View>
 
-          <View style={styles.sources}>
-            <Text style={styles.sourcesTitle}>Fontes consultadas:</Text>
-            <View style={styles.sourcesList}>
-              <SourceBadge label="CNJ DataJud (Tribunais)" />
-              <SourceBadge label="Diário Oficial da União" />
-              <SourceBadge label="Análise assistida por IA" />
-            </View>
-          </View>
+          <Text style={styles.disclaimerText}>
+            Consulta dados públicos oficiais brasileiros.
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -479,15 +474,6 @@ export default function Search() {
   );
 }
 
-function SourceBadge({ label }: { label: string }) {
-  return (
-    <View style={styles.sourceBadge}>
-      <Ionicons name="checkmark-circle" size={14} color={colors.flagGreen} />
-      <Text style={styles.sourceBadgeText}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
@@ -545,21 +531,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
   },
-  sources: { marginTop: spacing.xl },
-  sourcesTitle: { ...typography.caption, color: colors.textSecondary, marginBottom: spacing.sm, fontWeight: '600' },
-  sourcesList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  sourceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: colors.surface,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
+  disclaimerText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 16,
   },
-  sourceBadgeText: { ...typography.small, color: colors.text, fontWeight: '600' },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

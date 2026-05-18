@@ -21,13 +21,19 @@ export const colors = {
   accent: '#A78BFA',
   accentDark: '#8B6FE8',
   
-  // Flags de risco
-  flagGreen: '#10B981',
-  flagGreenBg: 'rgba(16, 185, 129, 0.15)',
-  flagYellow: '#F59E0B',
-  flagYellowBg: 'rgba(245, 158, 11, 0.15)',
-  flagRed: '#EF4444',
-  flagRedBg: 'rgba(239, 68, 68, 0.15)',
+  // Flags de risco (tons abafados sobre fundo dark)
+  // Green = verde musgo profundo, texto verde claro
+  flagGreen: '#86EFAC',
+  flagGreenBg: 'rgba(20, 83, 45, 0.55)',
+  flagGreenBorder: 'rgba(134, 239, 172, 0.25)',
+  // Yellow = âmbar quente, texto creme
+  flagYellow: '#FCD34D',
+  flagYellowBg: 'rgba(120, 53, 15, 0.55)',
+  flagYellowBorder: 'rgba(252, 211, 77, 0.25)',
+  // Red = bordô profundo, texto rosa claro
+  flagRed: '#FCA5A5',
+  flagRedBg: 'rgba(127, 29, 29, 0.55)',
+  flagRedBorder: 'rgba(252, 165, 165, 0.25)',
   
   // Text
   text: '#FFFFFF',

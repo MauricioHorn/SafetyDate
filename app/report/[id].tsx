@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Card } from '@/components/Card';
@@ -86,17 +85,36 @@ export default function Report() {
     );
   }
 
-  const flagColors = {
-    green: [colors.flagGreen, colors.flagGreen + '80'],
-    yellow: [colors.flagYellow, colors.flagYellow + '80'],
-    red: [colors.flagRed, colors.flagRed + '80'],
-  };
-
   const flagMessages = {
     green: 'Nenhum alerta encontrado',
-    yellow: 'Alguns pontos de atenção',
-    red: 'Alertas importantes encontrados',
+    yellow: 'Atenção necessária',
+    red: 'Alerta importante',
   };
+
+  const heroPalette =
+    report.flag === 'green'
+      ? {
+          bg: colors.flagGreenBg,
+          border: colors.flagGreenBorder,
+          accent: colors.flagGreen,
+          iconBg: colors.flagGreen + '26',
+          iconName: 'shield-checkmark' as const,
+        }
+      : report.flag === 'yellow'
+      ? {
+          bg: colors.flagYellowBg,
+          border: colors.flagYellowBorder,
+          accent: colors.flagYellow,
+          iconBg: colors.flagYellow + '26',
+          iconName: 'warning' as const,
+        }
+      : {
+          bg: colors.flagRedBg,
+          border: colors.flagRedBorder,
+          accent: colors.flagRed,
+          iconBg: colors.flagRed + '26',
+          iconName: 'alert-circle' as const,
+        };
 
   const directdData = report.raw_data?.directd;
   const flagReasons = report.raw_data?.flag_reasons;
@@ -169,7 +187,14 @@ export default function Report() {
         <Pressable onPress={() => router.back()} style={styles.headerButton}>
           <Ionicons name="close" size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Relatório</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Relatório</Text>
+          {report.created_at ? (
+            <Text style={styles.headerSubtitle}>
+              {`CONSULTADO EM ${formatConsultDateDdMmYyyy(report.created_at)}`}
+            </Text>
+          ) : null}
+        </View>
         <Pressable onPress={handleShare} style={styles.headerButton}>
           <Ionicons name="share-outline" size={22} color={colors.text} />
         </Pressable>
@@ -177,104 +202,59 @@ export default function Report() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Hero com flag */}
-        <LinearGradient
-          colors={flagColors[report.flag] as any}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hero}
+        <View
+          style={[
+            styles.heroRow,
+            {
+              backgroundColor: heroPalette.bg,
+              borderColor: heroPalette.border,
+            },
+          ]}
         >
-          <View style={styles.heroIcon}>
-            <Ionicons
-              name={
-                report.flag === 'green'
-                  ? 'shield-checkmark'
-                  : report.flag === 'yellow'
-                  ? 'warning'
-                  : 'alert-circle'
-              }
-              size={40}
-              color="#fff"
-            />
+          <View style={[styles.heroIconCircle, { backgroundColor: heroPalette.iconBg }]}>
+            <Ionicons name={heroPalette.iconName} size={22} color={heroPalette.accent} />
           </View>
-          <Text style={styles.heroTitle}>{flagMessages[report.flag]}</Text>
-          <Text style={styles.heroName}>{report.target_name}</Text>
-        </LinearGradient>
+          <View style={styles.heroTextCol}>
+            <Text style={[styles.heroTitle, { color: heroPalette.accent }]}>{flagMessages[report.flag]}</Text>
+            <Text style={styles.heroName}>{report.target_name}</Text>
+          </View>
+        </View>
 
-        {/* Por que essa bandeira */}
+        {/* Score — o que isso significa */}
         {shouldShowFlagReasons && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Por que essa bandeira</Text>
-            <View style={styles.reasonsContainer}>
-              {flagReasons!.map((m, idx) => {
-                const icon: keyof typeof Ionicons.glyphMap =
-                  m.nivel === 'critico'
-                    ? 'warning'
-                    : m.nivel === 'atencao'
-                    ? 'alert-circle'
-                    : 'checkmark-circle';
-                const color =
-                  m.nivel === 'critico'
-                    ? colors.flagRed
-                    : m.nivel === 'atencao'
-                    ? colors.flagYellow
-                    : colors.flagGreen;
-                return (
-                  <View key={idx} style={styles.reasonRow}>
-                    <Ionicons name={icon} size={18} color={color} />
-                    <Text style={styles.reasonText}>{m.texto}</Text>
-                  </View>
-                );
-              })}
-            </View>
+          <View style={styles.scoreCard}>
+            <Text style={styles.scoreEyebrow}>ANÁLISE</Text>
+            <Text style={styles.scoreHeadline}>O que isso significa</Text>
+            {flagReasons!.map((m: FlagReason, idx: number) => {
+              const icon: keyof typeof Ionicons.glyphMap =
+                m.nivel === 'critico'
+                  ? 'warning'
+                  : m.nivel === 'atencao'
+                  ? 'alert-circle'
+                  : 'checkmark-circle';
+              const color =
+                m.nivel === 'critico'
+                  ? colors.flagRed
+                  : m.nivel === 'atencao'
+                  ? colors.flagYellow
+                  : colors.flagGreen;
+              return (
+                <View key={idx} style={styles.reasonRow}>
+                  <Ionicons name={icon} size={18} color={color} />
+                  <Text style={styles.reasonText}>{m.texto}</Text>
+                </View>
+              );
+            })}
           </View>
         )}
 
-        {/* Dados cadastrais */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dados Cadastrais</Text>
-          <Card>
-            <Text style={styles.cadastroName}>{officialName}</Text>
-
-            {!hasCadastroData ? (
-              <Text style={styles.cadastroUnavailable}>Dados cadastrais indisponíveis no momento</Text>
-            ) : (
-              <View style={styles.cadastroGrid}>
-                <View style={styles.cadastroRow}>
-                  <CadastroItem label="Data de Nascimento" value={formatBirthDate(directdData?.dataNascimento)} />
-                  <CadastroItem label="Idade" value={directdData?.idade?.toString() || '—'} />
-                </View>
-
-                <View style={styles.cadastroRow}>
-                  <CadastroItem label="Signo" value={directdData?.signo || '—'} />
-                  <View style={styles.cadastroCol} />
-                </View>
-
-                <View style={styles.cadastroRow}>
-                  <CadastroItem label="CPF" value={maskCpf(directdData?.cpf || report.target_cpf || '—')} />
-                  <CadastroItem label="Nome da Mãe" value={maskMotherName(directdData?.nomeMae)} />
-                </View>
-
-                <View style={styles.cadastroFullRow}>
-                  <Text style={styles.cadastroLabel}>Cidade/UF</Text>
-                  <Text style={styles.cadastroValue}>{cityUf}</Text>
-                </View>
-
-                <View style={styles.cadastroFullRow}>
-                  <Text style={styles.cadastroLabel}>Estado Civil</Text>
-                  <Text style={styles.cadastroPlaceholder}>{civilStatusPlaceholder}</Text>
-                </View>
-              </View>
-            )}
-          </Card>
-        </View>
-
         {/* Verificações */}
         {verifications.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Verificações</Text>
-            <View style={styles.verificationList}>
+          <View style={[styles.verificationsSection, shouldShowFlagReasons && { marginTop: 0 }]}>
+            <Text style={styles.verificationsEyebrow}>VERIFICAÇÕES</Text>
+            <View style={styles.verificationGrid}>
               {verifications.map((item, idx) => (
-                <View key={idx} style={[styles.verificationBadge, { backgroundColor: item.background, borderColor: item.color + '40' }]}>
+                <View key={idx} style={styles.verificationBadge}>
                   <Ionicons name={item.icon} size={16} color={item.color} />
                   <Text style={[styles.verificationText, { color: item.color }]}>{item.text}</Text>
                 </View>
@@ -284,42 +264,82 @@ export default function Report() {
         )}
 
         {/* Resumo de IA */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Análise</Text>
+        <View
+          style={[
+            styles.aiSection,
+            !shouldShowFlagReasons && verifications.length === 0 ? { marginTop: spacing.xl } : null,
+          ]}
+        >
+          <View style={styles.aiEyebrowRow}>
+            <Text style={styles.aiEyebrow}>ANÁLISE DA IA</Text>
             <View style={styles.aiTag}>
               <Ionicons name="sparkles" size={12} color={colors.accent} />
               <Text style={styles.aiTagText}>IA</Text>
             </View>
           </View>
-          <Card>
-            <Text style={styles.summary}>{report.summary}</Text>
-          </Card>
+          <Text style={styles.aiQuote}>{report.summary}</Text>
         </View>
 
-        {/* Números */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Resumo numérico</Text>
-          <View style={styles.statsGrid}>
-            <StatCard
-              value={String(report.processes_count)}
-              label="Processos totais"
-              icon="document-text"
-              color={colors.accent}
-            />
-            <StatCard
-              value={String(report.criminal_processes_count)}
-              label="Processos criminais"
-              icon="warning"
-              color={report.criminal_processes_count > 0 ? colors.flagRed : colors.flagGreen}
-            />
+        {/* Números — só se houver processos */}
+        {(report.processes_count > 0 || report.criminal_processes_count > 0) && (
+          <View style={styles.numericSection}>
+            <Text style={styles.numericEyebrow}>RESUMO</Text>
+            <View style={styles.statsGrid}>
+              <StatCard value={String(report.processes_count)} label="Processos totais" />
+              <StatCard value={String(report.criminal_processes_count)} label="Processos criminais" />
+            </View>
           </View>
+        )}
+
+        {/* Dados cadastrais */}
+        <View style={styles.cadastroCard}>
+          <View style={styles.cadastroHeaderRow}>
+            <View style={styles.cadastroAvatar}>
+              <Ionicons name="person" size={22} color={colors.primary} />
+            </View>
+            <Text style={styles.cadastroHeaderName}>{officialName}</Text>
+          </View>
+
+          {!hasCadastroData ? (
+            <Text style={styles.cadastroUnavailable}>Dados cadastrais indisponíveis no momento</Text>
+          ) : (
+            <View style={styles.cadastroFieldsWrap}>
+              <View style={styles.cadastroFieldHalf}>
+                <Text style={styles.cadastroFieldLabel}>Data de Nascimento</Text>
+                <Text style={styles.cadastroFieldValue}>{formatBirthDate(directdData?.dataNascimento)}</Text>
+              </View>
+              <View style={styles.cadastroFieldHalf}>
+                <Text style={styles.cadastroFieldLabel}>Idade</Text>
+                <Text style={styles.cadastroFieldValue}>{directdData?.idade?.toString() || '—'}</Text>
+              </View>
+              <View style={styles.cadastroFieldHalf}>
+                <Text style={styles.cadastroFieldLabel}>Signo</Text>
+                <Text style={styles.cadastroFieldValue}>{directdData?.signo || '—'}</Text>
+              </View>
+              <View style={styles.cadastroFieldHalf}>
+                <Text style={styles.cadastroFieldLabel}>CPF</Text>
+                <Text style={styles.cadastroFieldValue}>{maskCpf(directdData?.cpf || report.target_cpf || '—')}</Text>
+              </View>
+              <View style={styles.cadastroFieldHalf}>
+                <Text style={styles.cadastroFieldLabel}>Nome da Mãe</Text>
+                <Text style={styles.cadastroFieldValue}>{maskMotherName(directdData?.nomeMae)}</Text>
+              </View>
+              <View style={[styles.cadastroFieldHalf, styles.cadastroFieldFull]}>
+                <Text style={styles.cadastroFieldLabel}>Cidade/UF</Text>
+                <Text style={styles.cadastroFieldValue}>{cityUf}</Text>
+              </View>
+              <View style={[styles.cadastroFieldHalf, styles.cadastroFieldFull]}>
+                <Text style={styles.cadastroFieldLabel}>Estado Civil</Text>
+                <Text style={styles.cadastroPlaceholder}>{civilStatusPlaceholder}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Lista de processos (se houver) */}
         {report.raw_data?.processes?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Processos encontrados</Text>
+          <View style={styles.processesSection}>
+            <Text style={styles.processesSectionTitle}>Processos encontrados</Text>
             {report.raw_data.processes.slice(0, 10).map((proc: any, idx: number) => (
               <Card key={idx} style={{ marginBottom: spacing.sm }}>
                 <View style={styles.processHeader}>
@@ -354,36 +374,32 @@ export default function Report() {
         )}
 
         {/* Disclaimer */}
-        <Card style={styles.disclaimer}>
-          <Ionicons name="information-circle" size={20} color={colors.textSecondary} />
+        <View style={styles.disclaimerContainer}>
           <Text style={styles.disclaimerText}>
             Este relatório é baseado em dados públicos disponíveis em diários oficiais e tribunais brasileiros. Ele não substitui uma avaliação profissional completa. Use as informações como um dos elementos em sua decisão.
           </Text>
-        </Card>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-function CadastroItem({ label, value }: { label: string; value: string }) {
+function StatCard({ value, label }: { value: string; label: string }) {
   return (
-    <View style={styles.cadastroCol}>
-      <Text style={styles.cadastroLabel}>{label}</Text>
-      <Text style={styles.cadastroValue}>{value}</Text>
-    </View>
-  );
-}
-
-function StatCard({ value, label, icon, color }: { value: string; label: string; icon: any; color: string }) {
-  return (
-    <View style={[styles.statCard, { borderColor: color + '30' }]}>
-      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
-        <Ionicons name={icon} size={18} color={color} />
-      </View>
+    <View style={styles.statCard}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
+}
+
+function formatConsultDateDdMmYyyy(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 function maskCpf(cpf: string) {
@@ -409,12 +425,23 @@ function maskMotherName(name?: string) {
 
 function formatBirthDate(input?: string) {
   if (!input?.trim()) return '—';
+  let s = input.trim();
+  if (s.includes('T')) {
+    s = s.split('T')[0] ?? s;
+  }
+  if (s.includes(' ')) {
+    s = s.split(' ')[0] ?? s;
+  }
   const isoLike = /^(\d{4})-(\d{2})-(\d{2})$/;
-  const match = input.trim().match(isoLike);
+  const match = s.match(isoLike);
   if (match) {
     return `${match[3]}/${match[2]}/${match[1]}`;
   }
-  return input;
+  const brLike = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+  if (brLike.test(s)) {
+    return s;
+  }
+  return s;
 }
 
 function flagLabel(flag: 'green' | 'yellow' | 'red') {
@@ -444,133 +471,265 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.surface,
   },
-  headerTitle: { ...typography.bodyBold, color: colors.text },
-  scroll: { paddingBottom: spacing.xxl },
-  hero: {
+  headerCenter: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  headerTitle: { ...typography.bodyBold, color: colors.text },
+  headerSubtitle: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  scroll: { paddingBottom: spacing.xxl },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
     padding: spacing.xl,
-    margin: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
     borderRadius: radius.xl,
+    borderWidth: 1,
   },
-  heroIcon: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: spacing.md,
+  heroIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center' },
-  heroName: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '600', marginTop: 4 },
-  section: { paddingHorizontal: spacing.md, marginBottom: spacing.lg },
-  reasonsContainer: {
+  heroTextCol: { flex: 1 },
+  heroTitle: { fontSize: 18, fontWeight: '700', lineHeight: 24 },
+  heroName: { fontSize: 13, fontWeight: '500', color: colors.textSecondary, marginTop: 6 },
+  scoreCard: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.sm,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  scoreEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textMuted,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  scoreHeadline: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.md,
   },
   reasonRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   reasonText: {
-    ...typography.small,
+    fontSize: 12,
     color: colors.textSecondary,
     flex: 1,
     lineHeight: 18,
     fontWeight: '600',
   },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+  verificationsSection: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.xl,
   },
-  sectionTitle: {
-    ...typography.small,
+  verificationsEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
     color: colors.textMuted,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 2,
     textTransform: 'uppercase',
     marginBottom: spacing.sm,
+    marginHorizontal: spacing.md,
+  },
+  verificationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.lg,
+  },
+  verificationBadge: {
+    flex: 1,
+    minWidth: 140,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  verificationText: {
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  aiSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  aiEyebrowRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  aiEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textMuted,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   aiTag: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     backgroundColor: colors.accent + '20',
     borderRadius: radius.full,
-    marginBottom: spacing.sm,
   },
   aiTagText: { ...typography.small, color: colors.accent, fontWeight: '700' },
-  cadastroName: {
-    ...typography.h3,
+  aiQuote: {
+    fontSize: 15,
+    lineHeight: 24,
+    fontWeight: '400',
     color: colors.text,
+    paddingLeft: spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  numericSection: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  numericEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textMuted,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
     marginBottom: spacing.md,
+  },
+  statsGrid: { flexDirection: 'row', gap: spacing.md },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  statValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  cadastroCard: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xl,
+  },
+  cadastroHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  cadastroAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primarySubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cadastroHeaderName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    flex: 1,
   },
   cadastroUnavailable: {
     ...typography.small,
     color: colors.textSecondary,
   },
-  cadastroGrid: {
-    gap: spacing.md,
-  },
-  cadastroRow: {
+  cadastroFieldsWrap: {
     flexDirection: 'row',
-    gap: spacing.md,
+    flexWrap: 'wrap',
+    marginHorizontal: -spacing.sm,
   },
-  cadastroCol: {
-    flex: 1,
+  cadastroFieldHalf: {
+    width: '50%',
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  cadastroFullRow: {
-    gap: 2,
+  cadastroFieldFull: {
+    width: '100%',
   },
-  cadastroLabel: {
-    ...typography.small,
+  cadastroFieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
     color: colors.textMuted,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
-  cadastroValue: {
-    ...typography.body,
-    color: colors.text,
+  cadastroFieldValue: {
+    fontSize: 15,
     fontWeight: '600',
+    color: colors.text,
   },
   cadastroPlaceholder: {
-    ...typography.small,
+    fontSize: 15,
+    fontWeight: '600',
     color: colors.textSecondary,
   },
-  verificationList: {
-    gap: spacing.sm,
-  },
-  verificationBadge: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
+  processesSection: {
     paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
+    marginBottom: spacing.xl,
   },
-  verificationText: {
+  processesSectionTitle: {
     ...typography.small,
-    flex: 1,
-    lineHeight: 18,
-    fontWeight: '600',
+    color: colors.textMuted,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: spacing.md,
   },
-  summary: { ...typography.body, color: colors.text, lineHeight: 24 },
-  statsGrid: { flexDirection: 'row', gap: spacing.sm },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  statIcon: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  statValue: { ...typography.h2, color: colors.text },
-  statLabel: { ...typography.small, color: colors.textSecondary, textAlign: 'center', marginTop: 2 },
   processHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -581,17 +740,16 @@ const styles = StyleSheet.create({
   processNumber: { ...typography.small, color: colors.textSecondary, fontFamily: 'monospace', marginTop: 4 },
   processTribunal: { ...typography.caption, color: colors.text, fontWeight: '600', marginTop: 2 },
   processSubject: { ...typography.small, color: colors.textSecondary, marginTop: 2 },
-  disclaimer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    margin: spacing.md,
-    backgroundColor: colors.surface,
-    alignItems: 'flex-start',
+  disclaimerContainer: {
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
   },
   disclaimerText: {
-    flex: 1,
-    ...typography.small,
-    color: colors.textSecondary,
+    fontSize: 12,
     lineHeight: 18,
+    color: colors.textMuted,
+    textAlign: 'center',
+    maxWidth: 320,
   },
 });

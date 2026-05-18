@@ -19,15 +19,12 @@ export interface AnaliseIA {
 }
 
 export interface AnaliseEnrichment {
-  directdProfile?: {
+  bdcProfile?: {
     nomeCompleto?: string;
     dataNascimento?: string;
     idade?: number;
     cidade?: string;
     uf?: string;
-  };
-  phoneCrosscheck?: {
-    status: 'match' | 'mismatch' | 'not_provided' | 'not_available';
   };
   bandeiraJaClassificada?: Bandeira;
 }
@@ -68,8 +65,6 @@ IMPORTANTE:
 - Seja objetiva e factual, sem dramatizar
 - Priorize o risco com base em processos judiciais
 - Se houver dados cadastrais, mencione consistência cadastral apenas se relevante para contexto
-- Se phoneCrosscheck.status = "mismatch", mencione no resumo de forma natural que o telefone informado não foi encontrado nos cadastros públicos da pessoa, sem dramatizar. Use linguagem acessível, não técnica.
-- Divergência de telefone, isoladamente, não deve elevar bandeira por si só
 - NÃO cite nomes de terceiros que aparecem nos processos
 - NÃO mencionar Receita Federal
 - NÃO mencionar óbito
@@ -101,7 +96,6 @@ REGRAS:
 - NÃO mencionar óbito (mesmo se a bandeira for red por isso, é o sistema que decide o que mostrar)
 - Se a pessoa é vítima e não réu, deixe claro
 - Em caso de poucos dados, diga isso com transparência
-- Se phoneCrosscheck.status = "mismatch", mencione no resumo de forma natural que o telefone informado não foi encontrado nos cadastros públicos da pessoa, sem dramatizar
 
 Retorne APENAS um JSON válido no formato:
 {
@@ -137,26 +131,18 @@ export async function analisarComClaude(
     ultimosMovimentos: p.movimentos?.slice(0, 3).map((m) => m.nome),
   }));
 
-  const cadastroResumo = enrichment?.directdProfile
+  const cadastroResumo = enrichment?.bdcProfile
     ? {
-        nomeCompleto: enrichment.directdProfile.nomeCompleto,
-        dataNascimento: enrichment.directdProfile.dataNascimento,
-        idade: enrichment.directdProfile.idade,
-        cidade: enrichment.directdProfile.cidade,
-        uf: enrichment.directdProfile.uf,
+        nomeCompleto: enrichment.bdcProfile.nomeCompleto,
+        dataNascimento: enrichment.bdcProfile.dataNascimento,
+        idade: enrichment.bdcProfile.idade,
+        cidade: enrichment.bdcProfile.cidade,
+        uf: enrichment.bdcProfile.uf,
       }
-    : null;
-
-  const phoneResumo = enrichment?.phoneCrosscheck
-    ? { status: enrichment.phoneCrosscheck.status }
     : null;
 
   const blocoCadastro = cadastroResumo
     ? `CADASTRO (base privada de cadastro pessoal):\n${JSON.stringify(cadastroResumo, null, 2)}\n`
-    : '';
-
-  const blocoPhone = phoneResumo
-    ? `PHONE CROSSCHECK:\n${JSON.stringify(phoneResumo, null, 2)}\n`
     : '';
 
   const blocoBandeira = enrichment?.bandeiraJaClassificada
@@ -165,7 +151,7 @@ export async function analisarComClaude(
 
   const userMessage = `${blocoBandeira}Analise os dados abaixo sobre a pessoa pesquisada: **${nome}**
 
-${blocoCadastro}${blocoPhone}
+${blocoCadastro}
 
 PROCESSOS JUDICIAIS ENCONTRADOS (${processos.length} total):
 ${JSON.stringify(processosResumidos, null, 2)}

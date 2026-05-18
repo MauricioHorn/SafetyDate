@@ -1,5 +1,5 @@
 import type { ProcessoJudicial } from './types.ts';
-import type { DirectdCadastroSanitizado } from './directd.ts';
+import type { BdcPessoaCadastro } from './types.ts';
 
 export type Bandeira = 'green' | 'yellow' | 'red';
 
@@ -129,11 +129,11 @@ export function ehProcessoCivel(p: ProcessoJudicial): boolean {
 
 /**
  * Classifica bandeira baseada em regras objetivas.
- * Recebe processos e dados Direct Data (pra detectar óbito).
+ * Recebe processos e dados BDC (pra detectar óbito).
  *
  * Regras:
  * 🔴 VERMELHA se:
- *  - Pessoa consta como falecida (Direct Data)
+ *  - Pessoa consta como falecida (BDC)
  *  - Algum processo grave (palavras-chave da lista, sem cutoff temporal)
  *  - 3+ processos cíveis recentes (até 3 anos) com padrão de inadimplência/cobrança
  *  - Algum processo criminal comum nos últimos 5 anos
@@ -147,12 +147,12 @@ export function ehProcessoCivel(p: ProcessoJudicial): boolean {
  */
 export function classificarBandeira(
   processos: ProcessoJudicial[],
-  directdData: DirectdCadastroSanitizado | null,
+  bdcData: BdcPessoaCadastro | null,
 ): ResultadoScoring {
   const motivos: MotivoBandeira[] = [];
 
   // ÓBITO — bandeira vermelha automática
-  if (directdData?.obito === true) {
+  if (bdcData?.temObito === true) {
     motivos.push({
       texto: 'Pessoa consta como falecida em registros oficiais',
       nivel: 'critico',

@@ -76,6 +76,7 @@ async function callBdc(body: BdcRequestBody): Promise<BdcResponse> {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const startMs = Date.now();
 
   try {
     const response = await fetch(BDC_ENDPOINT, {
@@ -95,7 +96,25 @@ async function callBdc(body: BdcRequestBody): Promise<BdcResponse> {
       throw new Error(`BDC HTTP ${response.status}: ${errorText.slice(0, 200)}`);
     }
 
-    return await response.json();
+    const responseData = await response.json();
+    const elapsedMs = Date.now() - startMs;
+
+    // Log normal — sempre ativo (sem dados sensíveis)
+    const resultCount = Array.isArray(responseData?.Result) ? responseData.Result.length : 0;
+    const hasBasicData = Boolean(responseData?.Result?.[0]?.BasicData);
+    const hasProcesses = Boolean(responseData?.Result?.[0]?.Processes);
+    console.log(
+      `[BDC] q=${body.q.replace(/\{[^}]+\}/g, '{...}')} datasets=${body.Datasets} status=${response.status} results=${resultCount} hasBasic=${hasBasicData} hasProcesses=${hasProcesses} elapsed=${elapsedMs}ms`
+    );
+
+    // Log de debug — só ativo se BDC_DEBUG=1
+    const debugEnabled = Deno.env.get('BDC_DEBUG') === '1';
+    if (debugEnabled) {
+      console.log('[BDC DEBUG] Query enviada:', body.q);
+      console.log('[BDC DEBUG] Resposta crua:', JSON.stringify(responseData, null, 2));
+    }
+
+    return responseData;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -258,6 +277,14 @@ export async function consultarPessoa(opts: {
   cadastro: BdcLookupResult;
   processos: ProcessoJudicial[];
 }> {
+  // Log da chave usada (sem expor valores)
+  const chavesUsadas = [
+    opts.cpf ? 'cpf' : null,
+    opts.nome ? 'nome' : null,
+    opts.telefone ? 'telefone' : null,
+  ].filter(Boolean).join(',');
+  console.log(`[BDC] consultarPessoa chamada com chaves: ${chavesUsadas}`);
+
   try {
     const q = buildQuery(opts);
     const response = await callBdc({ q, Datasets: DATASETS });

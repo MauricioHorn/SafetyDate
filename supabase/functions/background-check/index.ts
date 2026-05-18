@@ -4,7 +4,7 @@
  * Orquestra toda a cadeia:
  * 1. Autentica o usuário
  * 2. Valida plano (free → bloqueia, annual ativo → permite)
- * 3. Busca paralela em DataJud + DOU (e Direct Data conforme o modo)
+ * 3. Busca cadastral via Direct Data conforme o modo
  * 4. Envia dados para Claude fazer análise
  * 5. Salva resultado no banco
  * 6. Retorna relatório
@@ -12,12 +12,8 @@
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { classificarProcesso } from './datajud.ts';
-// NOTA: buscarProcessosPorNome (DataJud) foi desativado temporariamente.
-// A API pública do CNJ não suporta busca por nome de forma confiável.
-// Substituir por outra fonte de dados quando integrar (Direct Data, Escavador, DataLawyer, etc).
-import { buscarNoDOU } from './dou.ts';
 import { analisarComClaude } from './claude.ts';
+import type { ProcessoJudicial } from './types.ts';
 import { classificarBandeira } from './scoring.ts';
 import {
   buscarCadastroPorCpf,
@@ -263,8 +259,7 @@ serve(async (req: Request) => {
     }
 
     let directdResult: DirectdLookupResult | null = null;
-    let processos: Parameters<typeof classificarProcesso>[0][];
-    let publicacoesDOU: Awaited<ReturnType<typeof buscarNoDOU>>;
+    let processos: ProcessoJudicial[] = [];
 
     if (searchMode === 'name_phone') {
       if (cachedDirectd) {
@@ -274,8 +269,6 @@ serve(async (req: Request) => {
           data: cachedDirectd,
         };
         processos = [];
-        publicacoesDOU = await buscarNoDOU(nomeCompleto);
-        console.log('[BackgroundCheck] DataJud desativado temporariamente — processos=[]');
       } else {
         const resolucao = await resolverCandidatoPorNomeETelefone(
           nomeCompleto,
@@ -342,11 +335,7 @@ serve(async (req: Request) => {
           };
         }
 
-        const nomeJud =
-          directdResult.data?.nomeCompleto?.trim() || nomeCompleto;
         processos = [];
-        publicacoesDOU = await buscarNoDOU(nomeJud);
-        console.log('[BackgroundCheck] DataJud desativado temporariamente — processos=[]');
       }
     } else {
       const directdPromise: Promise<DirectdLookupResult | null> = cachedDirectd
@@ -358,18 +347,7 @@ serve(async (req: Request) => {
         : buscarCadastroPorCpf(cpfNormalizado);
 
       directdResult = await directdPromise;
-      const nomeJud =
-        directdResult?.ok && directdResult.data?.nomeCompleto?.trim()
-          ? directdResult.data.nomeCompleto.trim()
-          : '';
-      if (!nomeJud) {
-        console.log(
-          '[BackgroundCheck] Modo CPF sem nome no cadastro — DataJud/DOU com nome vazio (fail-soft)',
-        );
-      }
       processos = [];
-      publicacoesDOU = await buscarNoDOU(nomeJud);
-      console.log('[BackgroundCheck] DataJud desativado temporariamente — processos=[]');
     }
 
     const directdData = directdResult?.ok ? directdResult.data : null;
@@ -411,16 +389,16 @@ serve(async (req: Request) => {
     };
 
     console.log(
-      `[BackgroundCheck] Encontrados: ${processos.length} processos, ${publicacoesDOU.length} publicações DOU, cadastro ${directdResult?.ok ? 'ok' : 'indisponível'}, name_crosscheck=${nameCrosscheck.status}`,
+      `[BackgroundCheck] Encontrados: ${processos.length} processos, cadastro ${directdResult?.ok ? 'ok' : 'indisponível'}, name_crosscheck=${nameCrosscheck.status}`,
     );
 
     // 6. Análise via Claude
-    const scoring = classificarBandeira(processos, publicacoesDOU, directdData);
+    const scoring = classificarBandeira(processos, directdData);
     console.log(
       `[BackgroundCheck] Scoring: bandeira=${scoring.bandeira} motivos=${scoring.motivos.length} graves=${scoring.criminaisGravesCount}`,
     );
 
-    const analise = await analisarComClaude(nomeParaClaude, processos, publicacoesDOU, {
+    const analise = await analisarComClaude(nomeParaClaude, processos, {
       directdProfile: directdData
         ? {
           nomeCompleto: directdData.nomeCompleto,
@@ -436,15 +414,10 @@ serve(async (req: Request) => {
       bandeiraJaClassificada: scoring.bandeira,
     });
 
-    const criminaisLocal = processos.filter(
-      (p) => classificarProcesso(p) === 'criminal',
-    ).length;
-
     const bandeiraFinal = scoring.bandeira;
     const criminaisFinal = Math.max(
       analise.criminalProcessesCount,
       scoring.criminaisGravesCount,
-      criminaisLocal,
     );
 
     const targetName =
@@ -471,7 +444,6 @@ serve(async (req: Request) => {
         criminal_processes_count: criminaisFinal,
         raw_data: {
           processes: processos.slice(0, 50),
-          dou: publicacoesDOU.slice(0, 20),
           directd: directdData,
           directd_meta: directdMeta,
           phone_crosscheck: phoneCrosscheck,

@@ -6,8 +6,7 @@
  * 3. Determinar a bandeira (verde/amarelo/vermelho)
  */
 
-import type { ProcessoJudicial } from './datajud.ts';
-import type { PublicacaoDOU } from './dou.ts';
+import type { ProcessoJudicial } from './types.ts';
 import type { Bandeira } from './scoring.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')!;
@@ -35,10 +34,9 @@ export interface AnaliseEnrichment {
 
 const SYSTEM_PROMPT = `Você é o assistente de análise de segurança do SafetyDate — uma plataforma que ajuda mulheres a verificarem antecedentes antes de encontros, relacionamentos ou contratações.
 
-Você vai receber dados de até 3 fontes:
-1) Processos judiciais (CNJ DataJud)
-2) Publicações no Diário Oficial (DOU)
-3) Dados cadastrais básicos de uma base privada de cadastro pessoal (quando disponíveis)
+Você vai receber dados de até 2 fontes:
+1) Processos judiciais
+2) Dados cadastrais básicos de uma base privada de cadastro pessoal (quando disponíveis)
 
 Sua tarefa: analisar os dados recebidos e gerar:
 1. Um RESUMO em português claro, SEM juridiquês, com 3-6 frases
@@ -57,7 +55,6 @@ CRITÉRIOS DE BANDEIRA:
 - Processos trabalhistas como reclamado
 - Ações de família, divórcio litigioso, pensão alimentícia em atraso
 - Processos de cobrança / execução fiscal recorrentes
-- Penalidades administrativas leves no DOU
 
 🔴 VERMELHA (red) — use quando:
 - QUALQUER processo criminal (violência, agressão, homicídio, estupro, lesão corporal, ameaça)
@@ -69,7 +66,7 @@ CRITÉRIOS DE BANDEIRA:
 
 IMPORTANTE:
 - Seja objetiva e factual, sem dramatizar
-- Priorize o risco com base em processos judiciais e DOU
+- Priorize o risco com base em processos judiciais
 - Se houver dados cadastrais, mencione consistência cadastral apenas se relevante para contexto
 - Se phoneCrosscheck.status = "mismatch", mencione no resumo de forma natural que o telefone informado não foi encontrado nos cadastros públicos da pessoa, sem dramatizar. Use linguagem acessível, não técnica.
 - Divergência de telefone, isoladamente, não deve elevar bandeira por si só
@@ -93,7 +90,7 @@ A bandeira de risco JÁ FOI CLASSIFICADA externamente por um sistema de regras o
 
 Você vai receber:
 1. A bandeira já decidida (green, yellow, red)
-2. Os dados (processos, DOU, cadastro)
+2. Os dados (processos, cadastro)
 
 REGRAS:
 - Use linguagem acessível, não técnica
@@ -118,14 +115,13 @@ IMPORTANTE: o campo "flag" deve ser igual à bandeira fornecida. NÃO mude.`;
 export async function analisarComClaude(
   nome: string,
   processos: ProcessoJudicial[],
-  publicacoesDOU: PublicacaoDOU[],
   enrichment?: AnaliseEnrichment
 ): Promise<AnaliseIA> {
   // Se não encontrou nada, retorna verde direto (economiza tokens)
-  if (processos.length === 0 && publicacoesDOU.length === 0) {
+  if (processos.length === 0) {
     return {
       flag: 'green',
-      summary: `Não encontramos processos judiciais nem publicações no Diário Oficial relacionadas a ${nome} nas bases consultadas. Isso é um bom sinal, mas lembre-se: ausência de registros não é garantia absoluta. Continue avaliando outros sinais e confie na sua intuição.`,
+      summary: `Não encontramos processos judiciais relacionados a ${nome} nas bases consultadas. Isso é um bom sinal, mas lembre-se: ausência de registros não é garantia absoluta. Continue avaliando outros sinais e confie na sua intuição.`,
       criminalProcessesCount: 0,
     };
   }
@@ -139,13 +135,6 @@ export async function analisarComClaude(
     assuntos: p.assuntos?.map((a) => a.nome).slice(0, 3),
     orgao: p.orgaoJulgador?.nome,
     ultimosMovimentos: p.movimentos?.slice(0, 3).map((m) => m.nome),
-  }));
-
-  const douResumido = publicacoesDOU.slice(0, 10).map((p) => ({
-    titulo: p.titulo,
-    data: p.data,
-    orgao: p.orgao,
-    trecho: p.trecho,
   }));
 
   const cadastroResumo = enrichment?.directdProfile
@@ -180,9 +169,6 @@ ${blocoCadastro}${blocoPhone}
 
 PROCESSOS JUDICIAIS ENCONTRADOS (${processos.length} total):
 ${JSON.stringify(processosResumidos, null, 2)}
-
-PUBLICAÇÕES NO DIÁRIO OFICIAL (${publicacoesDOU.length} total):
-${JSON.stringify(douResumido, null, 2)}
 
 Retorne o JSON conforme instruído.`;
 
@@ -227,7 +213,7 @@ Retorne o JSON conforme instruído.`;
   } catch (err) {
     console.log('[Claude] erro na análise:', err);
     // Fallback: análise básica sem IA
-    return fallbackAnalise(nome, processos, publicacoesDOU);
+    return fallbackAnalise(nome, processos);
   }
 }
 
@@ -238,7 +224,6 @@ Retorne o JSON conforme instruído.`;
 function fallbackAnalise(
   nome: string,
   processos: ProcessoJudicial[],
-  publicacoesDOU: PublicacaoDOU[]
 ): AnaliseIA {
   const criminais = processos.filter((p) => {
     const nome = (p.classe?.nome || '').toLowerCase();
@@ -253,11 +238,11 @@ function fallbackAnalise(
 
   let flag: 'green' | 'yellow' | 'red' = 'green';
   if (criminais.length > 0) flag = 'red';
-  else if (processos.length >= 5 || publicacoesDOU.length >= 3) flag = 'yellow';
+  else if (processos.length >= 5) flag = 'yellow';
 
   return {
     flag,
-    summary: `Encontramos ${processos.length} processos e ${publicacoesDOU.length} publicações no Diário Oficial. ${
+    summary: `Encontramos ${processos.length} processos judiciais. ${
       criminais.length > 0
         ? `Atenção: ${criminais.length} deles são de natureza criminal. Recomendamos cautela.`
         : processos.length > 0

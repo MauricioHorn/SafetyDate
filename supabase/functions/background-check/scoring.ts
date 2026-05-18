@@ -1,5 +1,4 @@
-import type { ProcessoJudicial } from './datajud.ts';
-import type { PublicacaoDOU } from './dou.ts';
+import type { ProcessoJudicial } from './types.ts';
 import type { DirectdCadastroSanitizado } from './directd.ts';
 
 export type Bandeira = 'green' | 'yellow' | 'red';
@@ -130,7 +129,7 @@ export function ehProcessoCivel(p: ProcessoJudicial): boolean {
 
 /**
  * Classifica bandeira baseada em regras objetivas.
- * Recebe processos, publicações DOU e dados Direct Data (pra detectar óbito).
+ * Recebe processos e dados Direct Data (pra detectar óbito).
  *
  * Regras:
  * 🔴 VERMELHA se:
@@ -142,14 +141,12 @@ export function ehProcessoCivel(p: ProcessoJudicial): boolean {
  * 🟡 AMARELA se:
  *  - 1-2 processos cíveis recentes
  *  - Processos criminais comuns >5 anos
- *  - Citação em DOU por questão judicial
  *
  * 🟢 VERDE se:
  *  - Nada do acima
  */
 export function classificarBandeira(
   processos: ProcessoJudicial[],
-  publicacoesDOU: PublicacaoDOU[],
   directdData: DirectdCadastroSanitizado | null,
 ): ResultadoScoring {
   const motivos: MotivoBandeira[] = [];
@@ -263,15 +260,6 @@ export function classificarBandeira(
       nivel: 'atencao',
     });
   }
-  if (publicacoesDOU.length > 0) {
-    // DOU isolado vira sinal de atenção apenas se houver outros sinais
-    if (sinaisAtencao.length > 0) {
-      sinaisAtencao.push({
-        texto: `${publicacoesDOU.length} citação${publicacoesDOU.length > 1 ? 'ões' : ''} em Diário Oficial`,
-        nivel: 'atencao',
-      });
-    }
-  }
 
   if (sinaisAtencao.length > 0) {
     motivos.push(...sinaisAtencao);
@@ -286,14 +274,10 @@ export function classificarBandeira(
     };
   }
 
-  // VERDE — nada encontrado, ou só DOU isolado leve
-  if (processos.length === 0 && publicacoesDOU.length === 0) {
+  // VERDE — nada encontrado
+  if (processos.length === 0) {
     motivos.push({
       texto: 'Nenhum processo judicial encontrado',
-      nivel: 'positivo',
-    });
-    motivos.push({
-      texto: 'Nenhuma publicação em Diário Oficial',
       nivel: 'positivo',
     });
   } else {
@@ -301,12 +285,6 @@ export function classificarBandeira(
       texto: 'Sem registros criminais ou cíveis recentes relevantes',
       nivel: 'positivo',
     });
-    if (publicacoesDOU.length > 0) {
-      motivos.push({
-        texto: `${publicacoesDOU.length} citação${publicacoesDOU.length > 1 ? 'ões' : ''} em Diário Oficial (sem indicação de questão judicial relevante)`,
-        nivel: 'positivo',
-      });
-    }
   }
 
   return {

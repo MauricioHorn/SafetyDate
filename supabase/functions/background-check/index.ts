@@ -4,7 +4,7 @@
  * Orquestra toda a cadeia:
  * 1. Autentica o usuário
  * 2. Valida plano (free → bloqueia, annual ativo → permite)
- * 3. Busca cadastral via Direct Data conforme o modo
+ * 3. Busca cadastral via BigDataCorp conforme o modo
  * 4. Envia dados para Claude fazer análise
  * 5. Salva resultado no banco
  * 6. Retorna relatório
@@ -13,24 +13,9 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 import { analisarComClaude } from './claude.ts';
-import type { ProcessoJudicial } from './types.ts';
 import { classificarBandeira } from './scoring.ts';
-import {
-  buscarCadastroPorCpf,
-  calcularRangeDataPorIdade,
-  compararTelefone,
-  interseccaoCandidatos,
-  normalizarCpf,
-  normalizarTelefone,
-  processarIdsCandidato,
-  pesquisaAvancadaPorNome,
-  pesquisaAvancadaPorTelefone,
-  viewSearchPorUid,
-  type DirectdCadastroSanitizado,
-  type DirectdLookupResult,
-  type PesquisaAvancadaCandidato,
-  type PhoneCrosscheck,
-} from './directd.ts';
+import { consultarPessoa, normalizarCpf, normalizarTelefoneParaBdc } from './bigdatacorp.ts';
+import type { BdcPessoaCadastro, BdcLookupResult, ProcessoJudicial } from './types.ts';
 
 type SearchMode = 'name_phone' | 'cpf';
 
@@ -50,39 +35,9 @@ interface NameCrosscheckAuditoria {
   ultimoOficial?: string;
 }
 
-type NeedsMoreInfo = 'age' | 'exact_date';
-type NotFoundReason = 'name_not_found' | 'no_match_after_all_filters';
-type IntermediateReason = 'multiple_matches' | 'no_intersection' | 'no_results_after_filter';
-
-interface AdditionalFilters {
-  idadeAproximada?: number;
-  dataNascimento?: string;
-}
-
-interface ResolucaoMatchSucesso {
-  type: 'match';
-  cpf: string;
-  candidato: PesquisaAvancadaCandidato;
-}
-interface ResolucaoNeedsInfo {
-  type: 'needs_more_info';
-  needsMoreInfo: NeedsMoreInfo;
-  reason: IntermediateReason;
-  candidateCount: number;
-}
-interface ResolucaoNotFound {
-  type: 'not_found';
-  reason: NotFoundReason;
-}
-interface ResolucaoErro {
-  type: 'error';
-  message: string;
-}
-type ResolucaoResultado = ResolucaoMatchSucesso | ResolucaoNeedsInfo | ResolucaoNotFound | ResolucaoErro;
-
 interface BackgroundCheckNamePhoneCacheRow {
   created_at: string;
-  raw_data: { directd?: unknown } | null | undefined;
+  raw_data: { bdc?: unknown } | null | undefined;
   target_name: string | null;
 }
 
@@ -148,7 +103,6 @@ serve(async (req: Request) => {
     let cpfNormalizado = '';
     let phoneNormalizado = '';
     let birthDateOpt: string | undefined;
-    let additionalFilters: AdditionalFilters | undefined;
 
     if (searchMode === 'name_phone') {
       const name = body.name;
@@ -173,17 +127,6 @@ serve(async (req: Request) => {
       }
 
       nomeCompleto = name.trim();
-
-      const af = body.additionalFilters;
-      if (af && typeof af === 'object') {
-        additionalFilters = {};
-        if (typeof af.idadeAproximada === 'number' && af.idadeAproximada > 0 && af.idadeAproximada < 150) {
-          additionalFilters.idadeAproximada = Math.floor(af.idadeAproximada);
-        }
-        if (typeof af.dataNascimento === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(af.dataNascimento)) {
-          additionalFilters.dataNascimento = af.dataNascimento;
-        }
-      }
     } else {
       const cpf = body.cpf;
       if (cpf === undefined || cpf === null || String(cpf).trim() === '') {
@@ -196,11 +139,11 @@ serve(async (req: Request) => {
     }
 
     console.log(
-      `[BackgroundCheck] Modo=${searchMode} — nomeJud inicial=${searchMode === 'name_phone' ? nomeCompleto : '(após DirectD)'}`,
+      `[BackgroundCheck] Modo=${searchMode} — nomeJud inicial=${searchMode === 'name_phone' ? nomeCompleto : '(após BDC)'}`,
     );
 
-    // 4. Mini-cache 7d Direct Data
-    let cachedDirectd: DirectdCadastroSanitizado | null = null;
+    // 4. Mini-cache 7d BDC
+    let cachedBdc: BdcPessoaCadastro | null = null;
     const limite7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     try {
@@ -214,14 +157,14 @@ serve(async (req: Request) => {
           .limit(1);
 
         if (cacheError) {
-          console.log('[BackgroundCheck] erro no mini-cache DirectD (CPF):', cacheError);
+          console.log('[BackgroundCheck] erro no mini-cache BDC (CPF):', cacheError);
         } else {
-          const rawDirectd = cachedRows?.[0]?.raw_data?.directd;
-          if (isDirectdCacheUsable(rawDirectd)) {
-            cachedDirectd = rawDirectd as DirectdCadastroSanitizado;
-            console.log('[BackgroundCheck] DirectD cache hit (7d, CPF)');
-          } else if (rawDirectd) {
-            console.log('[BackgroundCheck] DirectD cache inválido/corrompido; consultando API');
+          const rawBdc = cachedRows?.[0]?.raw_data?.bdc;
+          if (isBdcCacheUsable(rawBdc)) {
+            cachedBdc = rawBdc as BdcPessoaCadastro;
+            console.log('[BackgroundCheck] BDC cache hit (7d, CPF)');
+          } else if (rawBdc) {
+            console.log('[BackgroundCheck] BDC cache inválido/corrompido; consultando API');
           }
         }
       } else if (searchMode === 'name_phone' && phoneNormalizado) {
@@ -236,137 +179,81 @@ serve(async (req: Request) => {
 
         const cachedRowsTyped = cachedRows as BackgroundCheckNamePhoneCacheRow[] | null;
 
-        // Filtra em memória pra encontrar cache que bata com nome também (normalizado)
         const cachedRow = cachedRowsTyped?.find((row) => {
           if (!row.target_name) return false;
           return normalizarNomeParaCache(row.target_name) === nomeNormalizadoParaCache;
         });
 
         if (cacheError) {
-          console.log('[BackgroundCheck] erro no mini-cache DirectD (telefone):', cacheError);
+          console.log('[BackgroundCheck] erro no mini-cache BDC (telefone):', cacheError);
         } else {
-          const rawDirectd = cachedRow?.raw_data?.directd;
-          if (isDirectdCacheUsable(rawDirectd)) {
-            cachedDirectd = rawDirectd as DirectdCadastroSanitizado;
-            console.log('[BackgroundCheck] DirectD cache hit (7d, telefone+nome)');
-          } else if (rawDirectd) {
-            console.log('[BackgroundCheck] DirectD cache inválido/corrompido; consultando API');
+          const rawBdc = cachedRow?.raw_data?.bdc;
+          if (isBdcCacheUsable(rawBdc)) {
+            cachedBdc = rawBdc as BdcPessoaCadastro;
+            console.log('[BackgroundCheck] BDC cache hit (7d, telefone+nome)');
+          } else if (rawBdc) {
+            console.log('[BackgroundCheck] BDC cache inválido/corrompido; consultando API');
           }
         }
       }
     } catch (err) {
-      console.log('[BackgroundCheck] erro inesperado no mini-cache DirectD:', err);
+      console.log('[BackgroundCheck] erro inesperado no mini-cache BDC:', err);
     }
 
-    let directdResult: DirectdLookupResult | null = null;
+    let bdcResult: BdcLookupResult | null = null;
     let processos: ProcessoJudicial[] = [];
 
-    if (searchMode === 'name_phone') {
-      if (cachedDirectd) {
-        directdResult = {
-          ok: true,
-          fromCache: true,
-          data: cachedDirectd,
-        };
-        processos = [];
-      } else {
-        const resolucao = await resolverCandidatoPorNomeETelefone(
-          nomeCompleto,
-          phoneNormalizado,
-          additionalFilters,
-        );
-
-        if (resolucao.type === 'needs_more_info') {
-          return new Response(
-            JSON.stringify({
-              needs_more_info: resolucao.needsMoreInfo,
-              reason: resolucao.reason,
-              candidate_count: resolucao.candidateCount,
-              search_mode: searchMode,
-            }),
-            {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 200,
-            },
-          );
-        }
-
-        if (resolucao.type === 'not_found') {
-          return new Response(
-            JSON.stringify({
-              not_found: true,
-              reason: resolucao.reason,
-              search_mode: searchMode,
-            }),
-            {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 200,
-            },
-          );
-        }
-
-        if (resolucao.type === 'error') {
-          return jsonError(resolucao.message, 502);
-        }
-
-        // Match certeiro. Vai buscar dados completos via ProcessingIds + ViewSearch.
-        const proc = await processarIdsCandidato(
-          [resolucao.candidato.id],
-          `ELAS - ${nomeCompleto}`,
-        );
-        if (proc.ok && proc.searchUid) {
-          const view = await viewSearchPorUid(proc.searchUid);
-          if (view.ok && view.data) {
-            directdResult = view;
-          } else {
-            console.log('[BackgroundCheck] viewSearchPorUid falhou — usando cadastro parcial do candidato');
-            directdResult = {
-              ok: true,
-              fromCache: false,
-              data: cadastroParcialDoCandidato(resolucao.candidato),
-            };
-          }
-        } else {
-          console.log('[BackgroundCheck] processarIdsCandidato falhou — usando cadastro parcial do candidato');
-          directdResult = {
-            ok: true,
-            fromCache: false,
-            data: cadastroParcialDoCandidato(resolucao.candidato),
-          };
-        }
-
-        processos = [];
-      }
-    } else {
-      const directdPromise: Promise<DirectdLookupResult | null> = cachedDirectd
-        ? Promise.resolve({
-          ok: true,
-          fromCache: true,
-          data: cachedDirectd,
-        } as DirectdLookupResult)
-        : buscarCadastroPorCpf(cpfNormalizado);
-
-      directdResult = await directdPromise;
+    if (cachedBdc) {
+      bdcResult = {
+        ok: true,
+        fromCache: true,
+        data: cachedBdc,
+      };
       processos = [];
+      console.log('[BackgroundCheck] Usando cache BDC');
+    } else {
+      const consultaOpts: { cpf?: string; nome?: string; telefone?: string } =
+        searchMode === 'cpf'
+          ? { cpf: cpfNormalizado }
+          : { nome: nomeCompleto, telefone: phoneNormalizado };
+
+      const consulta = await consultarPessoa(consultaOpts);
+
+      bdcResult = {
+        ok: consulta.cadastro.ok,
+        fromCache: false,
+        data: consulta.cadastro.data,
+        errorType: consulta.cadastro.errorType,
+        statusCode: consulta.cadastro.statusCode,
+      };
+      processos = consulta.processos;
+
+      if (!bdcResult.ok || !bdcResult.data) {
+        console.log(
+          `[BackgroundCheck] BDC falhou ou sem dados: errorType=${bdcResult.errorType}`,
+        );
+        return new Response(
+          JSON.stringify({
+            not_found: true,
+            reason: 'not_found',
+            search_mode: searchMode,
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          },
+        );
+      }
     }
 
-    const directdData = directdResult?.ok ? directdResult.data : null;
-
-    const phoneForCrosscheck =
-      searchMode === 'name_phone'
-        ? phoneNormalizado
-        : undefined;
-    const phoneCrosscheck: PhoneCrosscheck = compararTelefone(
-      phoneForCrosscheck,
-      directdData?.telefones,
-    );
+    const bdcData = bdcResult?.ok ? bdcResult.data : null;
 
     const nameCrosscheck: NameCrosscheckAuditoria = (() => {
       if (searchMode === 'cpf') {
         return { status: 'not_provided' };
       }
-      const oficial = directdData?.nomeCompleto?.trim();
-      if (!directdResult?.ok || !oficial) {
+      const oficial = bdcData?.nomeCompleto?.trim();
+      if (!bdcResult?.ok || !oficial) {
         return { status: 'not_available' };
       }
       return compararNomes(nomeCompleto, oficial);
@@ -375,41 +262,37 @@ serve(async (req: Request) => {
     const nomeParaClaude =
       searchMode === 'name_phone'
         ? nomeCompleto
-        : (directdData?.nomeCompleto?.trim() ||
+        : (bdcData?.nomeCompleto?.trim() ||
           'a pessoa pesquisada por CPF');
 
-    const directdMeta = {
+    const bdcMeta = {
       attempted: true,
       searchMode,
-      usedCache: Boolean(directdResult?.fromCache),
-      ok: Boolean(directdResult?.ok),
-      errorType: directdResult?.errorType ?? null,
-      statusCode: directdResult?.statusCode ?? null,
+      usedCache: Boolean(bdcResult?.fromCache),
+      ok: Boolean(bdcResult?.ok),
+      errorType: bdcResult?.errorType ?? null,
+      statusCode: bdcResult?.statusCode ?? null,
       cacheWindowHours: 168,
     };
 
     console.log(
-      `[BackgroundCheck] Encontrados: ${processos.length} processos, cadastro ${directdResult?.ok ? 'ok' : 'indisponível'}, name_crosscheck=${nameCrosscheck.status}`,
+      `[BackgroundCheck] Encontrados: ${processos.length} processos, cadastro ${bdcResult?.ok ? 'ok' : 'indisponível'}, name_crosscheck=${nameCrosscheck.status}`,
     );
 
-    // 6. Análise via Claude
-    const scoring = classificarBandeira(processos, directdData);
+    const scoring = classificarBandeira(processos, bdcData);
     console.log(
       `[BackgroundCheck] Scoring: bandeira=${scoring.bandeira} motivos=${scoring.motivos.length} graves=${scoring.criminaisGravesCount}`,
     );
 
     const analise = await analisarComClaude(nomeParaClaude, processos, {
-      directdProfile: directdData
+      bdcProfile: bdcData
         ? {
-          nomeCompleto: directdData.nomeCompleto,
-          dataNascimento: directdData.dataNascimento,
-          idade: directdData.idade,
-          cidade: directdData.enderecos?.[0]?.cidade,
-          uf: directdData.enderecos?.[0]?.uf,
+          nomeCompleto: bdcData.nomeCompleto,
+          dataNascimento: bdcData.dataNascimento,
+          idade: bdcData.idade,
+          cidade: bdcData.enderecos?.[0]?.cidade,
+          uf: bdcData.enderecos?.[0]?.uf,
         }
-        : undefined,
-      phoneCrosscheck: phoneCrosscheck
-        ? { status: phoneCrosscheck.status }
         : undefined,
       bandeiraJaClassificada: scoring.bandeira,
     });
@@ -423,13 +306,12 @@ serve(async (req: Request) => {
     const targetName =
       searchMode === 'name_phone'
         ? nomeCompleto
-        : (directdData?.nomeCompleto?.trim() || null);
+        : (bdcData?.nomeCompleto?.trim() || null);
     const targetCpf = searchMode === 'cpf' ? cpfNormalizado : null;
     const targetBirth =
       birthDateOpt !== undefined ? birthDateOpt : null;
     const targetPhone = searchMode === 'name_phone' ? phoneNormalizado : null;
 
-    // 7. Salva no banco
     const { data: saved, error: saveError } = await supabase
       .from('background_checks')
       .insert({
@@ -444,9 +326,8 @@ serve(async (req: Request) => {
         criminal_processes_count: criminaisFinal,
         raw_data: {
           processes: processos.slice(0, 50),
-          directd: directdData,
-          directd_meta: directdMeta,
-          phone_crosscheck: phoneCrosscheck,
+          bdc: bdcData,
+          bdc_meta: bdcMeta,
           name_crosscheck: nameCrosscheck,
           flag_reasons: scoring.motivos,
         },
@@ -488,11 +369,9 @@ serve(async (req: Request) => {
         summary: saved.summary,
         processes_count: saved.processes_count,
         criminal_processes_count: saved.criminal_processes_count,
-        cadastro_validado: Boolean(directdResult?.ok && directdData),
-        phone_match_status: phoneCrosscheck.status,
+        cadastro_validado: Boolean(bdcResult?.ok && bdcData),
         search_mode: searchMode,
         name_match_status: nameCrosscheck.status,
-        needs_more_info: null,
         not_found: false,
       }),
       {
@@ -505,101 +384,6 @@ serve(async (req: Request) => {
     return jsonError('Erro interno', 500);
   }
 });
-
-async function resolverCandidatoPorNomeETelefone(
-  nome: string,
-  telefone: string,
-  filtros?: AdditionalFilters,
-): Promise<ResolucaoResultado> {
-  const filtrosBusca: { dateOfBirthStart?: string; dateOfBirthEnd?: string } = {};
-  if (filtros?.dataNascimento) {
-    filtrosBusca.dateOfBirthStart = filtros.dataNascimento;
-    filtrosBusca.dateOfBirthEnd = filtros.dataNascimento;
-  } else if (filtros?.idadeAproximada) {
-    const range = calcularRangeDataPorIdade(filtros.idadeAproximada, 3);
-    filtrosBusca.dateOfBirthStart = range.dateOfBirthStart;
-    filtrosBusca.dateOfBirthEnd = range.dateOfBirthEnd;
-  }
-
-  const buscaA = await pesquisaAvancadaPorNome(nome, filtrosBusca);
-  if (!buscaA.ok) {
-    console.log(`[Resolver] busca por nome falhou: ${buscaA.errorType}`);
-    return { type: 'error', message: 'Falha ao consultar Direct Data (nome)' };
-  }
-
-  const listaA = buscaA.candidatos;
-
-  if (listaA.length === 1) {
-    return { type: 'match', cpf: listaA[0].cpf, candidato: listaA[0] };
-  }
-
-  if (listaA.length === 0) {
-    if (filtros?.idadeAproximada !== undefined && filtros?.dataNascimento === undefined) {
-      return {
-        type: 'needs_more_info',
-        needsMoreInfo: 'exact_date',
-        reason: 'no_results_after_filter',
-        candidateCount: 0,
-      };
-    }
-    if (filtros?.dataNascimento) {
-      return { type: 'not_found', reason: 'no_match_after_all_filters' };
-    }
-    return { type: 'not_found', reason: 'name_not_found' };
-  }
-
-  let candidatosFiltrados = listaA;
-
-  const semFiltrosAplicados =
-    filtros === undefined ||
-    (filtros.idadeAproximada === undefined && filtros.dataNascimento === undefined);
-
-  if (semFiltrosAplicados) {
-    const buscaB = await pesquisaAvancadaPorTelefone(telefone);
-    if (!buscaB.ok) {
-      console.log(`[Resolver] busca por telefone falhou: ${buscaB.errorType} — caindo para escada de filtros`);
-    } else {
-      const intersec = interseccaoCandidatos(listaA, buscaB.candidatos);
-      console.log(`[Resolver] interseccao: A=${listaA.length} B=${buscaB.candidatos.length} ∩=${intersec.length}`);
-      if (intersec.length === 1) {
-        return { type: 'match', cpf: intersec[0].cpf, candidato: intersec[0] };
-      }
-      if (intersec.length > 1) {
-        candidatosFiltrados = intersec;
-      }
-    }
-  }
-
-  if (filtros?.dataNascimento) {
-    return { type: 'not_found', reason: 'no_match_after_all_filters' };
-  }
-  if (filtros?.idadeAproximada !== undefined) {
-    return {
-      type: 'needs_more_info',
-      needsMoreInfo: 'exact_date',
-      reason: 'multiple_matches',
-      candidateCount: candidatosFiltrados.length,
-    };
-  }
-  return {
-    type: 'needs_more_info',
-    needsMoreInfo: 'age',
-    reason: candidatosFiltrados.length === listaA.length ? 'no_intersection' : 'multiple_matches',
-    candidateCount: candidatosFiltrados.length,
-  };
-}
-
-function cadastroParcialDoCandidato(c: PesquisaAvancadaCandidato): DirectdCadastroSanitizado {
-  return {
-    nomeCompleto: c.fullName?.trim() || undefined,
-    dataNascimento: c.dateOfBirth?.trim() || undefined,
-    nomeMae: c.motherName?.trim() || undefined,
-    telefones: [],
-    enderecos: [],
-    source: 'directd',
-    consultadoEm: new Date().toISOString(),
-  };
-}
 
 function normalizarNomeParaComparacao(s: string): string {
   return s
@@ -645,17 +429,16 @@ function compararNomes(
   };
 }
 
-function isDirectdCacheUsable(raw: unknown): boolean {
+function isBdcCacheUsable(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false;
   const d = raw as Record<string, unknown>;
 
   const nome = typeof d.nomeCompleto === 'string' ? d.nomeCompleto.trim() : '';
+  const cpf = typeof d.cpf === 'string' ? d.cpf.trim() : '';
   const dataNascimento =
     typeof d.dataNascimento === 'string' ? d.dataNascimento.trim() : '';
-  const telefones = Array.isArray(d.telefones) ? d.telefones : [];
-  const enderecos = Array.isArray(d.enderecos) ? d.enderecos : [];
 
-  return Boolean(nome || dataNascimento || telefones.length > 0 || enderecos.length > 0);
+  return Boolean(nome || cpf || dataNascimento);
 }
 
 function jsonError(message: string, status: number) {
@@ -673,4 +456,8 @@ function normalizarNomeParaCache(nome: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ');
+}
+
+function normalizarTelefone(phone: string): string {
+  return phone.replace(/\D/g, '');
 }

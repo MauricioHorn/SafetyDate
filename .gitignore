@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 expo-env.d.ts
 # @end expo-cli
 .expo/
+
+assets/_backup_logo_antiga/

@@ -163,6 +163,7 @@ function parseBasicData(raw: Record<string, unknown> | undefined): BdcPessoaCada
     nomePai: (raw['FatherName'] as string) || null,
     genero,
     estadoCivil,
+    signo: (raw['ZodiacSign'] as string) || null,
     statusReceita: (raw['TaxIdStatus'] as string) || null,
     temObito: Boolean(raw['HasObitIndication']),
     dataObito: parseBdcDate(raw['DateOfDeath'] as string | null),

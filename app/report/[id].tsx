@@ -8,6 +8,20 @@ import { FlagBadge } from '@/components/FlagBadge';
 import { supabase, BackgroundCheck } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 
+function titleCase(text: string | null | undefined): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return '';
+      const lower = ['de', 'da', 'do', 'dos', 'das', 'e'];
+      if (lower.includes(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 type FlagReason = { texto: string; nivel: 'critico' | 'atencao' | 'positivo' };
 
 interface BdcAddress {
@@ -136,7 +150,6 @@ export default function Report() {
   );
   const officialName = bdcData?.nomeCompleto || report.target_name;
   const primaryAddress = bdcData?.enderecos?.[0];
-  const cityUf = [primaryAddress?.cidade, primaryAddress?.uf].filter(Boolean).join(' / ') || '—';
   const civilStatusPlaceholder = `Não há registro público disponível em ${new Date().toLocaleDateString('pt-BR')}`;
 
   const nameStatus =
@@ -284,7 +297,7 @@ export default function Report() {
             <View style={styles.cadastroAvatar}>
               <Ionicons name="person" size={22} color={colors.primary} />
             </View>
-            <Text style={styles.cadastroHeaderName}>{officialName}</Text>
+            <Text style={styles.cadastroHeaderName}>{titleCase(officialName)}</Text>
           </View>
 
           {!hasCadastroData ? (
@@ -301,7 +314,7 @@ export default function Report() {
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>Signo</Text>
-                <Text style={styles.cadastroFieldValue}>{bdcData?.signo || '—'}</Text>
+                <Text style={styles.cadastroFieldValue}>{bdcData?.signo ? titleCase(bdcData.signo) : '—'}</Text>
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>CPF</Text>
@@ -311,10 +324,16 @@ export default function Report() {
                 <Text style={styles.cadastroFieldLabel}>Nome da Mãe</Text>
                 <Text style={styles.cadastroFieldValue}>{maskMotherName(bdcData?.nomeMae)}</Text>
               </View>
-              <View style={[styles.cadastroFieldHalf, styles.cadastroFieldFull]}>
-                <Text style={styles.cadastroFieldLabel}>Cidade/UF</Text>
-                <Text style={styles.cadastroFieldValue}>{cityUf}</Text>
-              </View>
+              {(primaryAddress?.cidade || primaryAddress?.uf) && (
+                <View style={[styles.cadastroFieldHalf, styles.cadastroFieldFull]}>
+                  <Text style={styles.cadastroFieldLabel}>Cidade/UF</Text>
+                  <Text style={styles.cadastroFieldValue}>
+                    {primaryAddress?.cidade && primaryAddress?.uf
+                      ? `${primaryAddress.cidade} / ${primaryAddress.uf}`
+                      : (primaryAddress?.cidade || primaryAddress?.uf)}
+                  </Text>
+                </View>
+              )}
               <View style={[styles.cadastroFieldHalf, styles.cadastroFieldFull]}>
                 <Text style={styles.cadastroFieldLabel}>Estado Civil</Text>
                 <Text style={styles.cadastroPlaceholder}>{civilStatusPlaceholder}</Text>
@@ -397,11 +416,13 @@ function maskCpf(cpf: string) {
 
 function maskMotherName(name?: string) {
   if (!name?.trim()) return '—';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const normalized = titleCase(name);
+  const parts = normalized.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return parts[0];
 
   const [firstName, ...rest] = parts;
   const maskedRest = rest.map((part) => {
+    if (['de', 'da', 'do', 'dos', 'das', 'e'].includes(part.toLowerCase())) return part;
     const firstChar = part.charAt(0);
     const maskSize = Math.max(part.length - 1, 3);
     return `${firstChar}${'x'.repeat(maskSize)}`;

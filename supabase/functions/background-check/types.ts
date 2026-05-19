@@ -39,6 +39,7 @@ export interface BdcPessoaCadastro {
   nomePai: string | null;
   genero: 'MASCULINO' | 'FEMININO' | null;
   estadoCivil: string | null;
+  signo?: string | null;  // ex: "ESCORPIAO", "TOURO", "LEAO" - vem do campo ZodiacSign do BDC
   statusReceita: 'REGULAR' | 'IRREGULAR' | 'SUSPENSO' | 'CANCELADO' | 'NULO' | string | null;
   temObito: boolean;
   dataObito: string | null;

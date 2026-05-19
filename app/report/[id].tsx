@@ -62,6 +62,22 @@ type ReportWithBdc = BackgroundCheck & {
   };
 };
 
+function ordenarProcessosPorRecencia(processes: any[]): any[] {
+  return [...processes].sort((a, b) => {
+    const dataA = a?.dataUltimaMovimentacao || '';
+    const dataB = b?.dataUltimaMovimentacao || '';
+
+    const aInvalida = !dataA || dataA.startsWith('0001');
+    const bInvalida = !dataB || dataB.startsWith('0001');
+
+    if (aInvalida && !bInvalida) return 1;
+    if (!aInvalida && bInvalida) return -1;
+    if (aInvalida && bInvalida) return 0;
+
+    return dataB.localeCompare(dataA);
+  });
+}
+
 export default function Report() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [report, setReport] = useState<ReportWithBdc | null>(null);
@@ -179,6 +195,11 @@ export default function Report() {
     color: string;
     background: string;
   }>;
+
+  const processes = report.raw_data?.processes ?? [];
+  const processosOrdenados = processes.length > 0 ? ordenarProcessosPorRecencia(processes) : [];
+  const processosVisiveis = processosOrdenados.slice(0, 10);
+  const totalProcessos = processes.length;
 
   return (
     <View style={styles.container}>
@@ -343,10 +364,15 @@ export default function Report() {
         </View>
 
         {/* Lista de processos (se houver) */}
-        {report.raw_data?.processes?.length > 0 && (
+        {totalProcessos > 0 && (
           <View style={styles.processesSection}>
             <Text style={styles.processesSectionTitle}>Processos encontrados</Text>
-            {report.raw_data.processes.slice(0, 10).map((proc: any, idx: number) => (
+            {totalProcessos > 10 && (
+              <Text style={styles.processCountHint}>
+                Mostrando os 10 processos mais recentes de {totalProcessos} encontrados
+              </Text>
+            )}
+            {processosVisiveis.map((proc: any, idx: number) => (
               <Card key={idx} style={{ marginBottom: spacing.sm }}>
                 <View style={styles.processHeader}>
                   <FlagBadge
@@ -737,6 +763,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: spacing.md,
+  },
+  processCountHint: {
+    fontSize: 13,
+    color: colors.textMuted,
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
   processHeader: {
     flexDirection: 'row',

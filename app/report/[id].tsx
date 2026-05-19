@@ -10,32 +10,39 @@ import { colors, spacing, typography, radius } from '@/lib/theme';
 
 type FlagReason = { texto: string; nivel: 'critico' | 'atencao' | 'positivo' };
 
-interface DirectdAddress {
+interface BdcAddress {
   cidade?: string;
   uf?: string;
 }
 
-interface DirectdData {
+interface BdcData {
   nomeCompleto?: string;
-  dataNascimento?: string;
-  idade?: number;
-  nomeMae?: string;
-  signo?: string;
   cpf?: string;
-  enderecos?: DirectdAddress[];
+  cpfMascarado?: string;
+  idade?: number;
+  dataNascimento?: string;
+  nomeMae?: string;
+  nomePai?: string | null;
+  genero?: string;
+  estadoCivil?: string | null;
+  statusReceita?: string;
+  temObito?: boolean;
+  dataObito?: string | null;
+  signo?: string;
+  enderecos?: BdcAddress[];
+  telefones?: Array<{ numero: string; tipo: string }>;
 }
 
 type MatchStatus = 'match' | 'mismatch' | 'not_provided' | 'not_available';
 
-type ReportWithDirectd = BackgroundCheck & {
+type ReportWithBdc = BackgroundCheck & {
   search_mode?: 'name_phone' | 'cpf';
   phone_match_status?: MatchStatus;
   name_match_status?: MatchStatus;
   cadastro_validado?: boolean;
   raw_data?: BackgroundCheck['raw_data'] & {
-    directd?: DirectdData | null;
-    directd_meta?: Record<string, unknown>;
-    phone_crosscheck?: { status?: MatchStatus; [k: string]: unknown };
+    bdc?: BdcData | null;
+    bdc_meta?: Record<string, unknown>;
     name_crosscheck?: { status?: MatchStatus; [k: string]: unknown };
     flag_reasons?: FlagReason[];
   };
@@ -43,7 +50,7 @@ type ReportWithDirectd = BackgroundCheck & {
 
 export default function Report() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [report, setReport] = useState<ReportWithDirectd | null>(null);
+  const [report, setReport] = useState<ReportWithBdc | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,7 +64,7 @@ export default function Report() {
       .select('*')
       .eq('id', id)
       .single();
-    setReport(data as ReportWithDirectd | null);
+    setReport(data as ReportWithBdc | null);
     setLoading(false);
   }
 
@@ -116,45 +123,25 @@ export default function Report() {
           iconName: 'alert-circle' as const,
         };
 
-  const directdData = report.raw_data?.directd;
+  const bdcData = report.raw_data?.bdc;
   const flagReasons = report.raw_data?.flag_reasons;
   const shouldShowFlagReasons = Boolean(flagReasons && flagReasons.length > 0);
   const hasCadastroData = Boolean(
-    directdData && (
-      directdData.nomeCompleto ||
-      directdData.cpf ||
-      directdData.dataNascimento ||
-      directdData.idade
+    bdcData && (
+      bdcData.nomeCompleto ||
+      bdcData.cpf ||
+      bdcData.dataNascimento ||
+      bdcData.idade
     )
   );
-  const officialName = directdData?.nomeCompleto || report.target_name;
-  const primaryAddress = directdData?.enderecos?.[0];
+  const officialName = bdcData?.nomeCompleto || report.target_name;
+  const primaryAddress = bdcData?.enderecos?.[0];
   const cityUf = [primaryAddress?.cidade, primaryAddress?.uf].filter(Boolean).join(' / ') || '—';
   const civilStatusPlaceholder = `Não há registro público disponível em ${new Date().toLocaleDateString('pt-BR')}`;
 
-  const phoneStatus =
-    report.phone_match_status ??
-    (report.raw_data?.phone_crosscheck as any)?.status;
   const nameStatus =
     report.name_match_status ??
     (report.raw_data?.name_crosscheck as any)?.status;
-
-  const phoneVerification =
-    phoneStatus === 'match'
-      ? {
-          icon: 'checkmark-circle' as const,
-          text: 'Telefone confere com o cadastro',
-          color: colors.flagGreen,
-          background: colors.flagGreen + '18',
-        }
-      : phoneStatus === 'mismatch'
-      ? {
-          icon: 'warning' as const,
-          text: 'Telefone não corresponde aos registros oficiais associados a essa pessoa',
-          color: colors.flagYellow,
-          background: colors.flagYellow + '18',
-        }
-      : null;
 
   const nameVerification =
     nameStatus === 'match'
@@ -173,7 +160,7 @@ export default function Report() {
         }
       : null;
 
-  const verifications = [phoneVerification, nameVerification].filter(Boolean) as Array<{
+  const verifications = [nameVerification].filter(Boolean) as Array<{
     icon: keyof typeof Ionicons.glyphMap;
     text: string;
     color: string;
@@ -306,23 +293,23 @@ export default function Report() {
             <View style={styles.cadastroFieldsWrap}>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>Data de Nascimento</Text>
-                <Text style={styles.cadastroFieldValue}>{formatBirthDate(directdData?.dataNascimento)}</Text>
+                <Text style={styles.cadastroFieldValue}>{formatBirthDate(bdcData?.dataNascimento)}</Text>
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>Idade</Text>
-                <Text style={styles.cadastroFieldValue}>{directdData?.idade?.toString() || '—'}</Text>
+                <Text style={styles.cadastroFieldValue}>{bdcData?.idade?.toString() || '—'}</Text>
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>Signo</Text>
-                <Text style={styles.cadastroFieldValue}>{directdData?.signo || '—'}</Text>
+                <Text style={styles.cadastroFieldValue}>{bdcData?.signo || '—'}</Text>
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>CPF</Text>
-                <Text style={styles.cadastroFieldValue}>{maskCpf(directdData?.cpf || report.target_cpf || '—')}</Text>
+                <Text style={styles.cadastroFieldValue}>{maskCpf(bdcData?.cpf || report.target_cpf || '—')}</Text>
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>Nome da Mãe</Text>
-                <Text style={styles.cadastroFieldValue}>{maskMotherName(directdData?.nomeMae)}</Text>
+                <Text style={styles.cadastroFieldValue}>{maskMotherName(bdcData?.nomeMae)}</Text>
               </View>
               <View style={[styles.cadastroFieldHalf, styles.cadastroFieldFull]}>
                 <Text style={styles.cadastroFieldLabel}>Cidade/UF</Text>

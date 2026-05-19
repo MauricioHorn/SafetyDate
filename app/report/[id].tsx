@@ -351,13 +351,13 @@ export default function Report() {
                 <View style={styles.processHeader}>
                   <FlagBadge
                     flag={
-                      proc.classe?.toLowerCase().includes('criminal') ||
-                      proc.classe?.toLowerCase().includes('penal')
+                      proc.classe?.nome?.toLowerCase().includes('criminal') ||
+                      proc.classe?.nome?.toLowerCase().includes('penal')
                         ? 'red'
                         : 'yellow'
                     }
                     size="sm"
-                    label={proc.classe || 'Processo'}
+                    label={proc.classe?.nome || 'Processo'}
                   />
                   {proc.dataAjuizamento && (
                     <Text style={styles.processDate}>

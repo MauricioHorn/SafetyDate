@@ -32,16 +32,25 @@ export function buildQuery(opts: {
   telefone?: string;
 }): string {
   const partes: string[] = [];
+
+  // CPF tem prioridade absoluta — outras chaves são ignoradas
   if (opts.cpf) {
     partes.push(`doc{${normalizarCpf(opts.cpf)}}`);
-    return partes.join('+');
+  } else {
+    if (opts.nome) partes.push(`name{${opts.nome.trim()}}`);
+    if (opts.telefone) partes.push(`phone{${normalizarTelefoneParaBdc(opts.telefone)}}`);
   }
-  if (opts.nome) partes.push(`name{${opts.nome.trim()}}`);
-  if (opts.telefone) partes.push(`phone{${normalizarTelefoneParaBdc(opts.telefone)}}`);
+
   if (partes.length === 0) {
     throw new Error('BDC: nenhuma chave de busca fornecida (cpf, nome ou telefone)');
   }
-  return partes.join('+');
+
+  // Parâmetros padrão do BDC (formato confirmado por inspeção do painel oficial)
+  partes.push('returnupdates{false}');
+  partes.push('dateformat{dd/MM/yyyy}');
+
+  // BDC usa VÍRGULA como separador, não PLUS
+  return partes.join(',');
 }
 
 export function normalizarCpf(cpf: string): string {
@@ -49,9 +58,13 @@ export function normalizarCpf(cpf: string): string {
 }
 
 export function normalizarTelefoneParaBdc(phone: string): string {
+  // BDC espera telefone com 11 dígitos SEM código de país (não usar 55)
+  // Ex: "(11) 99266-6603" → "11992666603"
   const digits = phone.replace(/\D/g, '');
-  if (digits.length === 11) return `55${digits}`;
-  if (digits.length === 13 && digits.startsWith('55')) return digits;
+  // Se vier com 55 na frente (13 dígitos), remove
+  if (digits.length === 13 && digits.startsWith('55')) {
+    return digits.slice(2);
+  }
   return digits;
 }
 
@@ -158,11 +171,21 @@ function parseBasicData(raw: Record<string, unknown> | undefined): BdcPessoaCada
   };
 }
 
-function parseBdcDate(iso: string | null): string | null {
-  if (!iso) return null;
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return null;
-  return `${m[3]}/${m[2]}/${m[1]}`;
+function parseBdcDate(value: string | null): string | null {
+  if (!value) return null;
+
+  // Já no formato dd/MM/yyyy (BDC retorna assim quando passamos dateformat{dd/MM/yyyy})
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    return value;
+  }
+
+  // Fallback: ISO 8601 (caso BDC não respeite dateformat em algum campo)
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  }
+
+  return null;
 }
 
 function parseProcesses(raw: Record<string, unknown> | undefined): ProcessoJudicial[] {

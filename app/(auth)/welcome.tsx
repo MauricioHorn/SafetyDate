@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 import { Button } from '@/components/Button';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 
+const logo = require('../../assets/icon.png');
+
 export default function Welcome() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -16,28 +18,30 @@ export default function Welcome() {
       />
       <SafeAreaView style={styles.container}>
         <View style={styles.hero}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="shield-checkmark" size={56} color={colors.primary} />
+          <View style={styles.logoContainer}>
+            <Image source={logo} style={styles.logo} resizeMode="cover" />
           </View>
           <Text style={styles.title}>ELAS</Text>
-          <Text style={styles.subtitle}>ELAS protegem ELAS</Text>
+          <Text style={styles.tagline}>
+            Verifique, monitore e peça ajuda — tudo em um só app.
+          </Text>
         </View>
 
         <View style={styles.features}>
           <Feature
             icon="search"
-            title="Antecedentes em segundos"
-            description="Consulta processos públicos no CNJ e publicações no Diário Oficial da União"
+            title="Verifique antecedentes"
+            description="Consulte processos públicos antes de confiar em alguém"
           />
           <Feature
-            icon="lock-closed"
-            title="100% anônimo"
-            description="A pessoa pesquisada nunca é notificada"
+            icon="alert-circle"
+            title="SOS em 3 segundos"
+            description="Acione um alerta de emergência na hora, com um toque"
           />
           <Feature
-            icon="sparkles"
-            title="Relatório com IA"
-            description="Informações claras, sem juridiquês"
+            icon="location"
+            title="Localização protegida"
+            description="Compartilhe seu trajeto em tempo real com quem você confia"
           />
         </View>
 
@@ -76,18 +80,23 @@ const styles = StyleSheet.create({
   },
   hero: {
     alignItems: 'center',
-    marginTop: spacing.xxl,
+    marginTop: spacing.xl,
   },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.primarySubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 30,
     marginBottom: spacing.lg,
-    borderWidth: 2,
-    borderColor: colors.primary,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     ...typography.h1,
@@ -95,11 +104,13 @@ const styles = StyleSheet.create({
     fontSize: 40,
     marginBottom: spacing.sm,
   },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
+  tagline: {
+    ...typography.bodyBold,
+    color: colors.text,
     textAlign: 'center',
+    marginTop: spacing.sm,
     lineHeight: 24,
+    paddingHorizontal: spacing.md,
   },
   features: {
     gap: spacing.md,

@@ -26,6 +26,34 @@ function titleCase(text: string | null | undefined): string {
     .join(' ');
 }
 
+function acentuarSigno(signo: string | null | undefined): string {
+  if (!signo) return '';
+  const mapa: Record<string, string> = {
+    aries: 'Áries',
+    touro: 'Touro',
+    gemeos: 'Gêmeos',
+    cancer: 'Câncer',
+    leao: 'Leão',
+    virgem: 'Virgem',
+    libra: 'Libra',
+    escorpiao: 'Escorpião',
+    sagitario: 'Sagitário',
+    capricornio: 'Capricórnio',
+    aquario: 'Aquário',
+    peixes: 'Peixes',
+  };
+  const chave = signo.trim().toLowerCase();
+  return mapa[chave] || titleCase(signo);
+}
+
+function formatProcessDate(data: string | null | undefined): string | null {
+  if (!data) return null;
+  if (data.startsWith('0001') || data.trim() === '') return null;
+  const d = new Date(data);
+  if (isNaN(d.getTime()) || d.getFullYear() < 1900) return null;
+  return d.toLocaleDateString('pt-BR');
+}
+
 type FlagReason = { texto: string; nivel: 'critico' | 'atencao' | 'positivo' };
 
 interface BdcAddress {
@@ -356,7 +384,7 @@ export default function Report() {
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>Signo</Text>
-                <Text style={styles.cadastroFieldValue}>{bdcData?.signo ? titleCase(bdcData.signo) : '—'}</Text>
+                <Text style={styles.cadastroFieldValue}>{bdcData?.signo ? acentuarSigno(bdcData.signo) : '—'}</Text>
               </View>
               <View style={styles.cadastroFieldHalf}>
                 <Text style={styles.cadastroFieldLabel}>CPF</Text>
@@ -404,11 +432,11 @@ export default function Report() {
                         : 'yellow'
                     }
                     size="sm"
-                    label={proc.classe?.nome || 'Processo'}
+                    label={proc.segredoJustica ? 'Em segredo de justiça' : (proc.classe?.nome || 'Processo')}
                   />
-                  {proc.dataAjuizamento && (
+                  {formatProcessDate(proc.dataAjuizamento) && (
                     <Text style={styles.processDate}>
-                      {new Date(proc.dataAjuizamento).toLocaleDateString('pt-BR')}
+                      {formatProcessDate(proc.dataAjuizamento)}
                     </Text>
                   )}
                 </View>
@@ -429,7 +457,7 @@ export default function Report() {
         {/* Disclaimer */}
         <View style={styles.disclaimerContainer}>
           <Text style={styles.disclaimerText}>
-            Este relatório é baseado em dados públicos disponíveis em diários oficiais e tribunais brasileiros. Ele não substitui uma avaliação profissional completa. Use as informações como um dos elementos em sua decisão.
+            Este relatório é baseado em dados públicos disponíveis em tribunais e órgãos oficiais brasileiros. Ele não substitui uma avaliação profissional completa. Use as informações como um dos elementos em sua decisão.
           </Text>
         </View>
       </ScrollView>
@@ -454,7 +482,7 @@ export default function Report() {
                     return formatted !== '—' ? formatted : undefined;
                   })(),
                   idade: bdcData.idade != null ? String(bdcData.idade) : undefined,
-                  signo: bdcData.signo ? titleCase(bdcData.signo) : undefined,
+                  signo: bdcData.signo ? acentuarSigno(bdcData.signo) : undefined,
                   cpfMascarado: (() => {
                     if (bdcData.cpfMascarado) return bdcData.cpfMascarado;
                     const cpf = bdcData.cpf || report.target_cpf;

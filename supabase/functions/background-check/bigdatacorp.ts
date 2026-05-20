@@ -30,6 +30,7 @@ export function buildQuery(opts: {
   cpf?: string;
   nome?: string;
   telefone?: string;
+  dataNascimento?: string; // formato dd/MM/yyyy ou ISO YYYY-MM-DD
 }): string {
   const partes: string[] = [];
 
@@ -39,6 +40,10 @@ export function buildQuery(opts: {
   } else {
     if (opts.nome) partes.push(`name{${opts.nome.trim()}}`);
     if (opts.telefone) partes.push(`phone{${normalizarTelefoneParaBdc(opts.telefone)}}`);
+    if (opts.dataNascimento) {
+      const dataBdc = normalizarDataParaBdc(opts.dataNascimento);
+      if (dataBdc) partes.push(`birthdate{${dataBdc}}`);
+    }
   }
 
   if (partes.length === 0) {
@@ -51,6 +56,25 @@ export function buildQuery(opts: {
 
   // BDC usa VÍRGULA como separador, não PLUS
   return partes.join(',');
+}
+
+export function normalizarDataParaBdc(data: string): string | null {
+  if (!data) return null;
+  const trimmed = data.trim();
+
+  // Já em dd/MM/yyyy
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // ISO YYYY-MM-DD → dd/MM/yyyy
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  }
+
+  // Formato inválido — não envia
+  return null;
 }
 
 export function normalizarCpf(cpf: string): string {
@@ -266,9 +290,10 @@ export async function buscarCadastroPorCpf(cpf: string): Promise<BdcLookupResult
 export async function buscarCadastroPorNomeTelefone(
   nome: string,
   telefone: string,
+  dataNascimento?: string,
 ): Promise<BdcLookupResult> {
   try {
-    const q = buildQuery({ nome, telefone });
+    const q = buildQuery({ nome, telefone, dataNascimento });
     const response = await callBdc({ q, Datasets: DATASETS });
     const result = response.Result?.[0];
     const cadastro = parseBasicData(result?.BasicData);
@@ -297,6 +322,7 @@ export async function consultarPessoa(opts: {
   cpf?: string;
   nome?: string;
   telefone?: string;
+  dataNascimento?: string;
 }): Promise<{
   cadastro: BdcLookupResult;
   processos: ProcessoJudicial[];
@@ -306,6 +332,7 @@ export async function consultarPessoa(opts: {
     opts.cpf ? 'cpf' : null,
     opts.nome ? 'nome' : null,
     opts.telefone ? 'telefone' : null,
+    opts.dataNascimento ? 'dataNascimento' : null,
   ].filter(Boolean).join(',');
   console.log(`[BDC] consultarPessoa chamada com chaves: ${chavesUsadas}`);
 

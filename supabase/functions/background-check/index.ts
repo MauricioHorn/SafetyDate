@@ -212,10 +212,10 @@ serve(async (req: Request) => {
       processos = [];
       console.log('[BackgroundCheck] Usando cache BDC');
     } else {
-      const consultaOpts: { cpf?: string; nome?: string; telefone?: string } =
+      const consultaOpts: { cpf?: string; nome?: string; telefone?: string; dataNascimento?: string } =
         searchMode === 'cpf'
           ? { cpf: cpfNormalizado }
-          : { nome: nomeCompleto, telefone: phoneNormalizado };
+          : { nome: nomeCompleto, telefone: phoneNormalizado, dataNascimento: birthDateOpt };
 
       const consulta = await consultarPessoa(consultaOpts);
 

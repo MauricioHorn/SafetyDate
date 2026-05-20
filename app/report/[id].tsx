@@ -1,5 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Share } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
+import ShareableReportCard from '../../components/ShareableReportCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -82,6 +86,7 @@ export default function Report() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [report, setReport] = useState<ReportWithBdc | null>(null);
   const [loading, setLoading] = useState(true);
+  const shareCardRef = useRef<View>(null);
 
   useEffect(() => {
     loadReport();
@@ -100,9 +105,25 @@ export default function Report() {
 
   async function handleShare() {
     if (!report) return;
-    await Share.share({
-      message: `Relatório ELAS sobre ${report.target_name}\n\nStatus: ${flagLabel(report.flag)}\n\n${report.summary}`,
-    });
+    try {
+      const uri = await captureRef(shareCardRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        return;
+      }
+
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: 'Compartilhar relatório',
+      });
+    } catch (error) {
+      console.error('Erro ao compartilhar:', error);
+    }
   }
 
   if (loading) {
@@ -412,6 +433,50 @@ export default function Report() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Card invisível usado apenas para captura de imagem ao compartilhar */}
+      <View style={styles.hiddenCard} pointerEvents="none">
+        <ShareableReportCard
+          ref={shareCardRef}
+          targetName={report.target_name}
+          flag={report.flag}
+          flagLabel={flagLabel(report.flag)}
+          flagReasons={(report.raw_data?.flag_reasons as Array<{ nivel: string; texto: string }>) || []}
+          totalProcessos={report.raw_data?.processes?.length || 0}
+          totalCriminais={report.criminal_processes_count || 0}
+          consultaData={report.created_at ? formatConsultDateDdMmYyyy(report.created_at) : ''}
+          cadastro={
+            bdcData
+              ? {
+                  nome: titleCase(bdcData.nomeCompleto || report.target_name),
+                  dataNascimento: (() => {
+                    const formatted = formatBirthDate(bdcData.dataNascimento);
+                    return formatted !== '—' ? formatted : undefined;
+                  })(),
+                  idade: bdcData.idade != null ? String(bdcData.idade) : undefined,
+                  signo: bdcData.signo ? titleCase(bdcData.signo) : undefined,
+                  cpfMascarado: (() => {
+                    if (bdcData.cpfMascarado) return bdcData.cpfMascarado;
+                    const cpf = bdcData.cpf || report.target_cpf;
+                    if (!cpf) return undefined;
+                    const masked = maskCpf(cpf);
+                    return masked !== '—' ? masked : undefined;
+                  })(),
+                  nomeMaeMascarado: (() => {
+                    if (!bdcData.nomeMae) return undefined;
+                    const masked = maskMotherName(bdcData.nomeMae);
+                    return masked !== '—' ? masked : undefined;
+                  })(),
+                  cidadeUf:
+                    primaryAddress?.cidade && primaryAddress?.uf
+                      ? `${primaryAddress.cidade} / ${primaryAddress.uf}`
+                      : undefined,
+                  estadoCivil: bdcData.estadoCivil || civilStatusPlaceholder,
+                }
+              : null
+          }
+        />
+      </View>
     </View>
   );
 }
@@ -791,5 +856,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     maxWidth: 320,
+  },
+  hiddenCard: {
+    position: 'absolute',
+    top: -10000,
+    left: 0,
+    opacity: 0,
   },
 });

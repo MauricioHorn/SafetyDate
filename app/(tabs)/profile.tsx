@@ -107,7 +107,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Segurança</Text>
           <MenuItem icon="lock-closed-outline" label="Alterar senha" onPress={() => {}} />
-          <MenuItem icon="shield-checkmark-outline" label="Privacidade" onPress={() => {}} />
+          <MenuItem icon="shield-checkmark-outline" label="Privacidade" onPress={() => router.push('/privacy-data')} />
         </View>
 
         <View style={styles.section}>

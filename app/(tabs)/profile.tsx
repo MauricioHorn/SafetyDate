@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -114,8 +114,8 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Ajuda</Text>
           <MenuItem icon="help-circle-outline" label="Central de ajuda" onPress={() => {}} />
           <MenuItem icon="mail-outline" label="Falar com o suporte" onPress={() => {}} />
-          <MenuItem icon="document-text-outline" label="Termos de uso" onPress={() => {}} />
-          <MenuItem icon="shield-outline" label="Política de privacidade" onPress={() => {}} />
+          <MenuItem icon="document-text-outline" label="Termos de uso" onPress={() => Linking.openURL('https://elasapp.com.br/termos')} />
+          <MenuItem icon="shield-outline" label="Política de privacidade" onPress={() => Linking.openURL('https://elasapp.com.br/privacidade')} />
         </View>
 
         <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>

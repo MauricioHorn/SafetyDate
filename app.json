@@ -2,6 +2,7 @@
   "expo": {
     "name": "ELAS",
     "slug": "elas",
+    "owner": "elas-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

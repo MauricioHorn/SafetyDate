@@ -137,12 +137,12 @@ export default function Home() {
           </Pressable>
           <Pressable
             style={styles.secondaryCard}
-            onPress={() => router.push('/safe-places')}
+            onPress={() => router.push('/live-share')}
             accessibilityRole="button"
           >
-            <Ionicons name="location-outline" size={22} color={colors.textSecondary} />
+            <Ionicons name="navigate-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.secondaryCardLabel} numberOfLines={1}>
-              Lugares Seguros
+              Tô Aqui
             </Text>
           </Pressable>
         </View>

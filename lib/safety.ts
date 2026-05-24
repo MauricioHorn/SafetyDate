@@ -4,6 +4,10 @@ import * as Battery from 'expo-battery';
 import NetInfo from '@react-native-community/netinfo';
 import * as SMS from 'expo-sms';
 import { Linking } from 'react-native';
+import {
+  startBackgroundLocationUpdates,
+  stopBackgroundLocationUpdates,
+} from './background-location';
 
 async function invokeSosEdgeFunction(
   functionName: 'send-sos-push' | 'send-sos-cancel',
@@ -35,6 +39,38 @@ async function invokeSosEdgeFunction(
     }
   } catch (error) {
     console.warn(`[sos] ${functionName} failed:`, error);
+  }
+}
+
+async function invokeLiveShareEdgeFunction(
+  payload: { session_id: string; user_id: string; context: string }
+): Promise<void> {
+  try {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return;
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-liveshare-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.warn('[live-share] send-liveshare-push failed:', response.status, errorText);
+    }
+  } catch (error) {
+    console.warn('[live-share] send-liveshare-push failed:', error);
   }
 }
 
@@ -276,7 +312,8 @@ export async function createSessionViews(
   sessionId: string,
   contacts: EmergencyContact[]
 ): Promise<Array<{ contact: EmergencyContact; viewToken: string; url: string }>> {
-  const WEB_BASE_URL = 'https://safetydate.app'; // Vai mudar pro seu domínio
+  const WEB_BASE_URL = 'https://elasapp.com.br';
+  // TODO: criar página /track no site (Lovable) pra acompanhamento ao vivo.
 
   const views = contacts.map(c => ({
     session_id: sessionId,
@@ -300,6 +337,59 @@ export async function createSessionViews(
       url: `${WEB_BASE_URL}/track/${view.view_token}`,
     };
   });
+}
+
+// =====================================================
+// LIVE SHARE ("Tô Aqui")
+// =====================================================
+
+export async function startLiveShare(context: string): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== 'granted') throw new Error('Location permission denied');
+
+  const gps = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Highest,
+  });
+
+  const batteryRaw = await Battery.getBatteryLevelAsync().catch(() => null);
+  const batteryLevel = batteryRaw !== null ? Math.round(batteryRaw * 100) : undefined;
+
+  const session = await startSafetySession({
+    latitude: gps.coords.latitude,
+    longitude: gps.coords.longitude,
+    batteryLevel,
+  });
+
+  const contacts = await getEmergencyContacts();
+  if (contacts.length > 0) {
+    await createSessionViews(session.id, contacts);
+  }
+
+  void invokeLiveShareEdgeFunction({
+    session_id: session.id,
+    user_id: user.id,
+    context,
+  });
+
+  try {
+    await startBackgroundLocationUpdates(session.id);
+  } catch (error) {
+    console.warn('[live-share] background location failed:', error);
+  }
+
+  return session.id;
+}
+
+export async function stopLiveShare(sessionId: string): Promise<void> {
+  await endSafetySession(sessionId, 'manual');
+  try {
+    await stopBackgroundLocationUpdates();
+  } catch (error) {
+    console.warn('[live-share] stop background failed:', error);
+  }
 }
 
 // =====================================================

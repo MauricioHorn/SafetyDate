@@ -1,19 +1,44 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, Pressable, Linking } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Pressable,
+  Linking,
+  Modal,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase, Profile } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+const PANIC_CODE_KEY = 'elas_panic_code';
+const MIN_PANIC_CODE = 4;
+const MAX_PANIC_CODE = 6;
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [panicModalVisible, setPanicModalVisible] = useState(false);
+  const [hasPanicCode, setHasPanicCode] = useState(false);
 
   useEffect(() => {
     loadProfile();
+    void refreshPanicCodeStatus();
   }, []);
+
+  async function refreshPanicCodeStatus() {
+    try {
+      const stored = await SecureStore.getItemAsync(PANIC_CODE_KEY);
+      setHasPanicCode(Boolean(stored && stored.length >= MIN_PANIC_CODE));
+    } catch {
+      setHasPanicCode(false);
+    }
+  }
 
   async function loadProfile() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -106,8 +131,13 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Segurança</Text>
+          <MenuItem
+            icon="keypad-outline"
+            label="Senha de emergência"
+            subtitle={hasPanicCode ? 'Configurada neste aparelho' : 'Não configurada'}
+            onPress={() => setPanicModalVisible(true)}
+          />
           <MenuItem icon="call-outline" label="Ligação falsa" onPress={() => router.push('/fake-call-setup')} />
-          <MenuItem icon="lock-closed-outline" label="Alterar senha" onPress={() => {}} />
           <MenuItem icon="shield-checkmark-outline" label="Privacidade" onPress={() => router.push('/privacy-data')} />
         </View>
 
@@ -125,17 +155,251 @@ export default function ProfileScreen() {
 
         <Text style={styles.version}>ELAS v1.0.0</Text>
       </ScrollView>
+
+      <PanicCodeModal
+        visible={panicModalVisible}
+        hasExisting={hasPanicCode}
+        onClose={() => setPanicModalVisible(false)}
+        onSaved={() => {
+          void refreshPanicCodeStatus();
+          setPanicModalVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
 
-function MenuItem({ icon, label, onPress }: { icon: any; label: string; onPress: () => void }) {
+function PanicCodeModal({
+  visible,
+  hasExisting,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  hasExisting: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [step, setStep] = useState<'menu' | 'enter' | 'confirm'>('enter');
+  const [firstCode, setFirstCode] = useState('');
+  const [confirmCode, setConfirmCode] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const reset = useCallback(() => {
+    setStep(hasExisting ? 'menu' : 'enter');
+    setFirstCode('');
+    setConfirmCode('');
+    setSaving(false);
+  }, [hasExisting]);
+
+  useEffect(() => {
+    if (!visible) reset();
+  }, [visible, reset]);
+
+  const activeCode = step === 'enter' ? firstCode : confirmCode;
+  const setActiveCode = step === 'enter' ? setFirstCode : setConfirmCode;
+
+  const handleDigit = (digit: string) => {
+    if (activeCode.length >= MAX_PANIC_CODE) return;
+    const next = activeCode + digit;
+    setActiveCode(next);
+    if (next.length >= MIN_PANIC_CODE && next.length < MAX_PANIC_CODE) {
+      // aguarda mais dígitos ou confirmação manual
+    }
+    if (next.length === MAX_PANIC_CODE) {
+      void advanceStep(next);
+    }
+  };
+
+  const advanceStep = async (code: string) => {
+    if (step === 'enter') {
+      setFirstCode(code);
+      setStep('confirm');
+      setConfirmCode('');
+      return;
+    }
+    if (code !== firstCode) {
+      Alert.alert('Códigos diferentes', 'Digite o mesmo código nas duas etapas.');
+      setConfirmCode('');
+      return;
+    }
+    setSaving(true);
+    try {
+      await SecureStore.setItemAsync(PANIC_CODE_KEY, code);
+      onSaved();
+      Alert.alert('Pronto', 'Senha de emergência salva neste aparelho.');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmLength = () => {
+    if (activeCode.length < MIN_PANIC_CODE) {
+      Alert.alert('Código curto', `Use entre ${MIN_PANIC_CODE} e ${MAX_PANIC_CODE} dígitos.`);
+      return;
+    }
+    void advanceStep(activeCode);
+  };
+
+  const handleBackspace = () => {
+    setActiveCode((c) => c.slice(0, -1));
+  };
+
+  const handleStartChange = () => {
+    setFirstCode('');
+    setConfirmCode('');
+    setStep('enter');
+  };
+
+  const handleRemove = () => {
+    Alert.alert(
+      'Remover senha',
+      'Remover a senha de emergência deste aparelho?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await SecureStore.deleteItemAsync(PANIC_CODE_KEY);
+              onSaved();
+              Alert.alert('Removida', 'Senha de emergência removida.');
+            } catch {
+              Alert.alert('Erro', 'Não foi possível remover.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={panicStyles.modal} edges={['top', 'bottom']}>
+        <View style={panicStyles.modalHeader}>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <Text style={panicStyles.cancelText}>Cancelar</Text>
+          </Pressable>
+          <Text style={panicStyles.modalTitle}>Senha de emergência</Text>
+          <View style={{ width: 72 }} />
+        </View>
+
+        {step === 'menu' ? (
+          <View style={panicStyles.menuContent}>
+            <Text style={panicStyles.menuStatus}>Senha configurada neste aparelho.</Text>
+            <Pressable style={panicStyles.menuBtnPrimary} onPress={handleStartChange}>
+              <Text style={panicStyles.menuBtnPrimaryText}>Alterar senha</Text>
+            </Pressable>
+            <Pressable style={panicStyles.menuBtnDanger} onPress={handleRemove}>
+              <Text style={panicStyles.menuBtnDangerText}>Remover senha</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <Text style={panicStyles.modalHint}>
+              {step === 'enter'
+                ? `Crie um código numérico de ${MIN_PANIC_CODE} a ${MAX_PANIC_CODE} dígitos. Fica só neste celular — não enviamos pro servidor.`
+                : 'Digite o mesmo código novamente para confirmar.'}
+            </Text>
+
+            <View style={panicStyles.dotsRow}>
+              {Array.from({ length: MAX_PANIC_CODE }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    panicStyles.dot,
+                    i < activeCode.length && panicStyles.dotFilled,
+                  ]}
+                />
+              ))}
+            </View>
+
+            <Text style={panicStyles.lengthHint}>
+              {activeCode.length} / {MAX_PANIC_CODE} dígitos
+            </Text>
+
+            {activeCode.length >= MIN_PANIC_CODE && activeCode.length < MAX_PANIC_CODE && (
+              <Pressable
+                style={panicStyles.continueBtn}
+                onPress={handleConfirmLength}
+                disabled={saving}
+              >
+                <Text style={panicStyles.continueText}>
+                  {step === 'enter' ? 'Continuar' : 'Confirmar'}
+                </Text>
+              </Pressable>
+            )}
+
+            <PanicKeypad onDigit={handleDigit} onBackspace={handleBackspace} />
+          </>
+        )}
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function PanicKeypad({
+  onDigit,
+  onBackspace,
+}: {
+  onDigit: (d: string) => void;
+  onBackspace: () => void;
+}) {
+  const rows = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['', '0', 'back'],
+  ];
+
+  return (
+    <View style={panicStyles.keypad}>
+      {rows.map((row, rowIndex) => (
+        <View key={rowIndex} style={panicStyles.keypadRow}>
+          {row.map((key) => {
+            if (key === '') return <View key="spacer" style={panicStyles.keySpacer} />;
+            if (key === 'back') {
+              return (
+                <Pressable key="back" onPress={onBackspace} style={panicStyles.key}>
+                  <Ionicons name="backspace-outline" size={24} color={colors.text} />
+                </Pressable>
+              );
+            }
+            return (
+              <Pressable key={key} onPress={() => onDigit(key)} style={panicStyles.key}>
+                <Text style={panicStyles.keyText}>{key}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  subtitle,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  subtitle?: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.menuItem, pressed && { opacity: 0.6 }]}>
       <View style={styles.menuItemIcon}>
         <Ionicons name={icon} size={20} color={colors.textSecondary} />
       </View>
-      <Text style={styles.menuItemLabel}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.menuItemLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.menuItemSubtitle}>{subtitle}</Text> : null}
+      </View>
       <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
     </Pressable>
   );
@@ -197,11 +461,120 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceElevated,
     alignItems: 'center', justifyContent: 'center',
   },
-  menuItemLabel: { flex: 1, ...typography.body, color: colors.text },
+  menuItemLabel: { ...typography.body, color: colors.text },
+  menuItemSubtitle: { ...typography.small, color: colors.textMuted, marginTop: 2 },
   version: {
     textAlign: 'center',
     ...typography.small,
     color: colors.textMuted,
     marginTop: spacing.xl,
+  },
+});
+
+const panicStyles = StyleSheet.create({
+  modal: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.md,
+  },
+  cancelText: { color: colors.primary, fontSize: 16, fontWeight: '600' },
+  modalTitle: { ...typography.h3, color: colors.text },
+  modalHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 14,
+    marginBottom: spacing.sm,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+  },
+  dotFilled: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  lengthHint: {
+    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 13,
+    marginBottom: spacing.md,
+  },
+  continueBtn: {
+    alignSelf: 'center',
+    backgroundColor: colors.primarySubtle,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    marginBottom: spacing.md,
+  },
+  continueText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
+  keypad: { gap: spacing.sm, marginTop: spacing.md },
+  keypadRow: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
+  key: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keySpacer: { width: 72, height: 72 },
+  keyText: { fontSize: 28, color: colors.text, fontWeight: '400' },
+  menuContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    gap: spacing.md,
+  },
+  menuStatus: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  menuBtnPrimary: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    alignItems: 'center',
+  },
+  menuBtnPrimaryText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  menuBtnDanger: {
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.flagRed,
+  },
+  menuBtnDangerText: {
+    color: colors.flagRed,
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

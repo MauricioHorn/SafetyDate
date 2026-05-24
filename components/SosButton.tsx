@@ -1,65 +1,44 @@
-import React, { useRef } from 'react';
-import { StyleSheet, Pressable, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import React, { useEffect } from 'react';
+import { StyleSheet, Pressable, View, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as QuickActions from 'expo-quick-actions';
+import { useQuickActionRouting } from 'expo-quick-actions/router';
 import { colors } from '@/lib/theme';
+
+const QUICK_ACTION_ID = 'unlock';
 
 export function SosFab() {
   const router = useRouter();
-  const pulseTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useQuickActionRouting();
 
-  const clearPulseTimers = () => {
-    pulseTimers.current.forEach((t) => clearTimeout(t));
-    pulseTimers.current = [];
-  };
+  useEffect(() => {
+    QuickActions.setItems([
+      {
+        id: QUICK_ACTION_ID,
+        title: 'Desbloquear',
+        icon:
+          Platform.OS === 'ios'
+            ? 'symbol:lock.open'
+            : 'shortcut_unlock',
+        params: { href: '/sos-unlock' },
+      },
+    ]).catch(() => null);
+  }, []);
 
-  const handlePressIn = () => {
-    clearPulseTimers();
-    // Pulso 1 — leve, em 1 segundo
-    pulseTimers.current.push(
-      setTimeout(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => null);
-      }, 1000)
-    );
-    // Pulso 2 — médio, em 2.5 segundos
-    pulseTimers.current.push(
-      setTimeout(() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => null);
-      }, 2500)
-    );
-    // Pulso 3 é disparado pelo onLongPress (4s) — não duplicar aqui
-  };
-
-  const handlePressOut = () => {
-    // Usuário soltou antes dos 4s — cancela tudo
-    clearPulseTimers();
-  };
-
-  const handleLongPress = async () => {
-    clearPulseTimers();
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    router.push('/sos-countdown');
-  };
-
-  const handlePress = async () => {
-    // Tap rápido (menos de 4s): não faz nada além de feedback discreto
-    await Haptics.selectionAsync();
+  const handlePress = () => {
+    router.push('/sos-unlock');
   };
 
   return (
     <Pressable
       onPress={handlePress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onLongPress={handleLongPress}
-      delayLongPress={4000}
       style={({ pressed }) => [
         styles.fab,
         pressed && styles.fabPressed,
       ]}
-      accessibilityLabel="Botão de emergência SOS"
-      accessibilityHint="Mantenha pressionado por 4 segundos para acionar"
+      accessibilityLabel="Atalho"
+      accessibilityHint="Abre a tela de desbloqueio"
     >
       <View style={styles.iconWrapper}>
         <Ionicons name="alert" size={22} color={colors.flagRed} />
@@ -68,7 +47,6 @@ export function SosFab() {
   );
 }
 
-// Mantendo export antigo pra retrocompatibilidade caso outro arquivo importe
 export const SosButton = SosFab;
 
 const styles = StyleSheet.create({

@@ -20,7 +20,10 @@
         "NSContactsUsageDescription": "ELAS precisa acessar seus contatos para avisar sua rede de confiança em emergências.",
         "NSLocationWhenInUseUsageDescription": "ELAS precisa da sua localização pra enviar pras amigas em caso de emergência.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com app fechado.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -49,7 +52,29 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-quick-actions",
+        {
+          "androidIcons": {
+            "shortcut_unlock": {
+              "foregroundImage": "./assets/adaptive-icon.png",
+              "backgroundColor": "#0F0F1A"
+            }
+          },
+          "iosActions": [
+            {
+              "id": "unlock",
+              "title": "Desbloquear",
+              "icon": "symbol:lock.open",
+              "params": {
+                "href": "/sos-unlock"
+              }
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

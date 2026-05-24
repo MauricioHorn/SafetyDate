@@ -41,7 +41,7 @@ export function SosFab() {
       accessibilityHint="Abre a tela de desbloqueio"
     >
       <View style={styles.iconWrapper}>
-        <Ionicons name="alert" size={22} color={colors.flagRed} />
+        <Ionicons name="lock-closed" size={22} color={colors.flagRed} />
       </View>
     </Pressable>
   );

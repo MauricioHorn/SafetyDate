@@ -83,10 +83,9 @@ async function upsertSessionLocationWithRetry(
     attempt += 1;
 
     try {
-      const upsertPromise = supabase
-        .from('safety_sessions')
-        .upsert(payload, { onConflict: 'id' });
-
+      const upsertPromise = Promise.resolve(
+        supabase.from('safety_sessions').upsert(payload, { onConflict: 'id' })
+      );
       const { error } = await withTimeout(upsertPromise, options.timeoutMs);
 
       if (error) {

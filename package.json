@@ -20,6 +20,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "@supabase/supabase-js": "^2.45.0",
     "expo": "54",
+    "expo-av": "~16.0.8",
     "expo-battery": "~10.0.8",
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",

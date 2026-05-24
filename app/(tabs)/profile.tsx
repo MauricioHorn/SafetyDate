@@ -106,6 +106,7 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Segurança</Text>
+          <MenuItem icon="call-outline" label="Ligação falsa" onPress={() => router.push('/fake-call-setup')} />
           <MenuItem icon="lock-closed-outline" label="Alterar senha" onPress={() => {}} />
           <MenuItem icon="shield-checkmark-outline" label="Privacidade" onPress={() => router.push('/privacy-data')} />
         </View>

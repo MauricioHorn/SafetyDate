@@ -127,12 +127,12 @@ export default function Home() {
         <View style={styles.secondaryRow}>
           <Pressable
             style={styles.secondaryCard}
-            onPress={() => router.push('/emergency-contacts')}
+            onPress={() => router.push('/fake-call-setup')}
             accessibilityRole="button"
           >
-            <Ionicons name="people-outline" size={22} color={colors.textSecondary} />
+            <Ionicons name="call-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.secondaryCardLabel} numberOfLines={1}>
-              Contatos
+              Ligação falsa
             </Text>
           </Pressable>
           <Pressable

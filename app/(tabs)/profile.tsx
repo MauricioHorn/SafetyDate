@@ -131,6 +131,7 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Segurança</Text>
+          <MenuItem icon="people-outline" label="Contatos de confiança" onPress={() => router.push('/emergency-contacts')} />
           <MenuItem
             icon="keypad-outline"
             label="Senha de emergência"

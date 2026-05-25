@@ -419,14 +419,23 @@ export default function SafetyModeScreen() {
                 <Text style={styles.addFirstText}>Cadastre sua casa ou local seguro</Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.placesList}>
-                {safePlaces.map((p) => (
-                  <View key={p.id} style={styles.placeChip}>
-                    <Text style={styles.placeEmoji}>{p.icon_emoji}</Text>
-                    <Text style={styles.placeChipText}>{p.name}</Text>
-                  </View>
-                ))}
-              </View>
+              <>
+                <View style={styles.placesList}>
+                  {safePlaces.map((p) => (
+                    <View key={p.id} style={styles.placeChip}>
+                      <Text style={styles.placeEmoji}>{p.icon_emoji}</Text>
+                      <Text style={styles.placeChipText}>{p.name}</Text>
+                    </View>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  style={styles.addFirstBtn}
+                  onPress={() => router.push('/safe-places')}
+                >
+                  <Ionicons name="add-circle" size={20} color="#FF4D7E" />
+                  <Text style={styles.addFirstText}>Adicionar local</Text>
+                </TouchableOpacity>
+              </>
             )}
 
             <TouchableOpacity

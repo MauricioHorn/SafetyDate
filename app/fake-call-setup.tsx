@@ -17,6 +17,7 @@ import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { Button } from '@/components/Button';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+import { supabase } from '@/lib/supabase';
 
 /**
  * LIMITAÇÃO: não é possível imitar a tela de chamada NATIVA do sistema (iOS/Android).
@@ -123,6 +124,30 @@ function parseMinutesInput(text: string, fallback: number): number {
   return clampMinutes(parseInt(digits, 10));
 }
 
+async function incrementFakeCallCount(): Promise<void> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('fake_call_count')
+      .eq('id', user.id)
+      .single();
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ fake_call_count: (profile?.fake_call_count ?? 0) + 1 })
+      .eq('id', user.id);
+
+    if (error) console.error('[fake-call] increment fake_call_count failed:', error);
+  } catch (error) {
+    console.error('[fake-call] increment fake_call_count failed:', error);
+  }
+}
+
 function callerInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
@@ -171,6 +196,7 @@ export default function FakeCallSetupScreen() {
   };
 
   const handleCallNow = () => {
+    void incrementFakeCallCount();
     const params: FakeCallParams = {
       callerName: callerName.trim() || 'Desconhecido',
       photoUri: '',
@@ -229,6 +255,8 @@ export default function FakeCallSetupScreen() {
         }
         navigateToIncoming(params);
       }, delayMs);
+
+      void incrementFakeCallCount();
 
       Alert.alert(
         'Ligação agendada',

@@ -23,6 +23,8 @@ export type Profile = {
   plan: 'free' | 'annual';
   plan_expires_at: string | null;
   searches_count: number;
+  fake_call_count: number;
+  live_share_count: number;
   created_at: string;
 };
 

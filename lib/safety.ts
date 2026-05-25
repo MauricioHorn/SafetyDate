@@ -343,6 +343,25 @@ export async function createSessionViews(
 // LIVE SHARE ("Tô Aqui")
 // =====================================================
 
+async function incrementLiveShareCount(userId: string): Promise<void> {
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('live_share_count')
+      .eq('id', userId)
+      .single();
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ live_share_count: (profile?.live_share_count ?? 0) + 1 })
+      .eq('id', userId);
+
+    if (error) console.warn('[live-share] increment live_share_count failed:', error);
+  } catch (error) {
+    console.warn('[live-share] increment live_share_count failed:', error);
+  }
+}
+
 export async function startLiveShare(context: string): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -379,6 +398,8 @@ export async function startLiveShare(context: string): Promise<string> {
   } catch (error) {
     console.warn('[live-share] background location failed:', error);
   }
+
+  void incrementLiveShareCount(user.id);
 
   return session.id;
 }

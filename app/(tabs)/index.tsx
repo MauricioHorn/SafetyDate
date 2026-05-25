@@ -149,16 +149,34 @@ export default function Home() {
 
         {/* TODO: calcular saídas com Modo Seguro do mês corrente */}
         <View style={styles.statsCard}>
-          <View style={styles.statsColumn}>
-            <Text style={styles.statsNumber}>
-              {initialLoadDone ? String(profile?.searches_count ?? 0) : '—'}
-            </Text>
-            <Text style={styles.statsLabel}>Pesquisas feitas</Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statsCell}>
+              <Text style={styles.statsNumber}>
+                {initialLoadDone ? String(profile?.searches_count ?? 0) : '—'}
+              </Text>
+              <Text style={styles.statsLabel}>Pesquisas feitas</Text>
+            </View>
+            <View style={styles.statsDividerV} />
+            <View style={styles.statsCell}>
+              <Text style={styles.statsNumber}>—</Text>
+              <Text style={styles.statsLabel}>Saídas com Modo Seguro</Text>
+            </View>
           </View>
-          <View style={styles.statsDivider} />
-          <View style={styles.statsColumn}>
-            <Text style={styles.statsNumber}>—</Text>
-            <Text style={styles.statsLabel}>Saídas com Modo Seguro</Text>
+          <View style={styles.statsDividerH} />
+          <View style={styles.statsRow}>
+            <View style={styles.statsCell}>
+              <Text style={styles.statsNumber}>
+                {initialLoadDone ? String(profile?.fake_call_count ?? 0) : '—'}
+              </Text>
+              <Text style={styles.statsLabel}>Ligações falsas</Text>
+            </View>
+            <View style={styles.statsDividerV} />
+            <View style={styles.statsCell}>
+              <Text style={styles.statsNumber}>
+                {initialLoadDone ? String(profile?.live_share_count ?? 0) : '—'}
+              </Text>
+              <Text style={styles.statsLabel}>Tô Aqui</Text>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -272,22 +290,27 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   statsCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: radius.xl,
-    padding: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
   },
-  statsColumn: {
+  statsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
+  statsCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+  },
   statsNumber: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: colors.primary,
   },
@@ -297,9 +320,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
-  statsDivider: {
+  statsDividerV: {
     width: 1,
-    height: 40,
+    alignSelf: 'stretch',
     backgroundColor: colors.border,
+  },
+  statsDividerH: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.sm,
   },
 });

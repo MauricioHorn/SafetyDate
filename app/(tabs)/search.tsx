@@ -12,11 +12,9 @@ import {
   UIManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Card } from '@/components/Card';
 import { supabase } from '@/lib/supabase';
 import { hasActivePremium } from '@/lib/revenuecat';
 import { colors, spacing, typography, radius } from '@/lib/theme';
@@ -152,18 +150,9 @@ export default function Search() {
           <View style={styles.header}>
             <Text style={styles.title}>Nova pesquisa</Text>
             <Text style={styles.subtitle}>
-              Preencha os dados da pessoa que você quer verificar
+              Preencha os dados da pessoa que você quer verificar. A pessoa pesquisada nunca é notificada.
             </Text>
           </View>
-
-          <Card style={styles.infoCard}>
-            <View style={styles.infoIcon}>
-              <Ionicons name="lock-closed" size={18} color={colors.flagGreen} />
-            </View>
-            <Text style={styles.infoText}>
-              100% anônimo. A pessoa pesquisada nunca é notificada.
-            </Text>
-          </Card>
 
           <View style={styles.tabsContainer}>
             <Pressable
@@ -248,11 +237,11 @@ export default function Search() {
               />
             )}
 
-            <Text style={styles.helpText}>
-              {searchMode === 'name_phone'
-                ? 'Nome e telefone são suficientes para pesquisar. Adicione a data de nascimento se souber, pra evitar homônimos.'
-                : 'Pesquisa direta com CPF. Mais precisa quando você já tem o documento da pessoa.'}
-            </Text>
+            {searchMode === 'cpf' && (
+              <Text style={styles.helpText}>
+                Pesquisa direta com CPF. Mais precisa quando você já tem o documento da pessoa.
+              </Text>
+            )}
 
             <Button
               label="Pesquisar agora"
@@ -260,10 +249,6 @@ export default function Search() {
               loading={loading}
             />
           </View>
-
-          <Text style={styles.disclaimerText}>
-            Consulta dados públicos oficiais brasileiros.
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -273,23 +258,9 @@ export default function Search() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { marginBottom: spacing.lg },
-  title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs },
-  subtitle: { ...typography.body, color: colors.textSecondary },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-    backgroundColor: colors.flagGreenBg,
-    borderColor: colors.flagGreen + '33',
-  },
-  infoIcon: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.flagGreenBg,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  infoText: { flex: 1, ...typography.caption, color: colors.text, fontWeight: '600' },
+  header: { marginBottom: spacing.lg, alignItems: 'center' },
+  title: { ...typography.h1, color: colors.text, marginBottom: spacing.xs, textAlign: 'center' },
+  subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   tabsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -326,11 +297,5 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: spacing.xs,
     marginBottom: spacing.sm,
-  },
-  disclaimerText: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 16,
   },
 });

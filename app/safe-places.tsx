@@ -168,7 +168,7 @@ export default function SafePlacesScreen() {
           <Text style={styles.title}>Onde é seguro?</Text>
           <Text style={styles.subtitle}>
             Cadastre casa, trabalho ou casa de parentes. Quando chegar em um desses,
-            o Safety Mode encerra automaticamente.
+            o Modo Seguro encerra automaticamente.
           </Text>
         </View>
 
@@ -197,7 +197,7 @@ export default function SafePlacesScreen() {
             <Text style={styles.emptyIcon}>🏠</Text>
             <Text style={styles.emptyTitle}>Nenhum local cadastrado</Text>
             <Text style={styles.emptyText}>
-              Cadastre sua casa para o Safety Mode funcionar bem
+              Cadastre sua casa para o Modo Seguro funcionar bem
             </Text>
           </View>
         )}

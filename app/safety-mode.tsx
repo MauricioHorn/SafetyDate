@@ -171,7 +171,7 @@ export default function SafetyModeScreen() {
           setIsBackgroundTrackingRunning(false);
           Alert.alert(
             `Bem-vinda${arrivedPlace.name === 'Casa' ? ' em casa' : ''}! 🏠`,
-            `Safety Mode encerrado automaticamente. Seus contatos foram avisados que você chegou.`
+            `Modo Seguro encerrado automaticamente. Seus contatos foram avisados que você chegou.`
           );
           setMode('idle');
           setActiveSession(null);
@@ -190,7 +190,7 @@ export default function SafetyModeScreen() {
     if (safePlaces.length === 0) {
       Alert.alert(
         'Cadastre um local seguro',
-        'Antes de ativar o Safety Mode, cadastre sua casa ou outro lugar seguro. Assim o app sabe quando encerrar.',
+        'Antes de ativar o Modo Seguro, cadastre sua casa ou outro lugar seguro. Assim o app sabe quando encerrar.',
         [
           { text: 'Depois', style: 'cancel' },
           { text: 'Cadastrar', onPress: () => router.push('/safe-places') },
@@ -248,7 +248,7 @@ export default function SafetyModeScreen() {
         for (const view of views) {
           const message =
             `🛡️ ELAS\n\n` +
-            `Estou ativando o Safety Mode. Você pode me acompanhar em tempo real aqui:\n\n` +
+            `Estou ativando o Modo Seguro. Você pode me acompanhar em tempo real aqui:\n\n` +
             `${view.url}\n\n` +
             `O link expira quando eu chegar em um lugar seguro.\n\n` +
             `Se algo der errado, vou apertar o botão SOS.`;
@@ -274,7 +274,7 @@ export default function SafetyModeScreen() {
     if (!activeSession) return;
 
     Alert.alert(
-      'Encerrar Safety Mode?',
+      'Encerrar Modo Seguro?',
       'Suas amigas deixarão de ver sua localização.',
       [
         { text: 'Não', style: 'cancel' },
@@ -332,7 +332,7 @@ export default function SafetyModeScreen() {
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Safety Mode',
+          title: 'Modo Seguro',
           headerStyle: { backgroundColor: '#0A0A14' },
           headerTintColor: '#FFFFFF',
         }}
@@ -368,7 +368,7 @@ export default function SafetyModeScreen() {
         {mode === 'active' && (
           <View style={styles.activeBadge}>
             <View style={styles.pulseDot} />
-            <Text style={styles.activeBadgeText}>Safety Mode ATIVO</Text>
+            <Text style={styles.activeBadgeText}>Modo Seguro ATIVO</Text>
           </View>
         )}
       </View>
@@ -446,7 +446,7 @@ export default function SafetyModeScreen() {
               onPress={handleStart}
               disabled={contacts.length === 0 || safePlaces.length === 0}
             >
-              <Text style={styles.startBtnText}>🛡️ Ativar Safety Mode</Text>
+              <Text style={styles.startBtnText}>🛡️ Ativar Modo Seguro</Text>
             </TouchableOpacity>
           </>
         )}
@@ -454,7 +454,7 @@ export default function SafetyModeScreen() {
         {mode === 'starting' && (
           <View style={styles.startingState}>
             <ActivityIndicator size="large" color="#FF4D7E" />
-            <Text style={styles.startingText}>Ativando Safety Mode...</Text>
+            <Text style={styles.startingText}>Ativando Modo Seguro...</Text>
             <Text style={styles.startingSubtext}>Enviando links para seus contatos</Text>
           </View>
         )}
@@ -488,7 +488,7 @@ export default function SafetyModeScreen() {
             </View>
 
             <TouchableOpacity style={styles.endBtn} onPress={handleEnd}>
-              <Text style={styles.endBtnText}>Encerrar Safety Mode</Text>
+              <Text style={styles.endBtnText}>Encerrar Modo Seguro</Text>
             </TouchableOpacity>
           </>
         )}

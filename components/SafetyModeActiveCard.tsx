@@ -33,7 +33,7 @@ export function SafetyModeActiveCard({ session, onEnded }: Props) {
 
   const handleEnd = () => {
     Alert.alert(
-      'Encerrar Safety Mode?',
+      'Encerrar Modo Seguro?',
       'Suas amigas deixarão de ver sua localização. Tem certeza?',
       [
         { text: 'Não', style: 'cancel' },
@@ -61,7 +61,7 @@ export function SafetyModeActiveCard({ session, onEnded }: Props) {
     >
       <View style={styles.pulseDot} />
       <View style={styles.content}>
-        <Text style={styles.title}>🛡️ Safety Mode ATIVO</Text>
+        <Text style={styles.title}>🛡️ Modo Seguro ATIVO</Text>
         <Text style={styles.subtitle}>
           Suas amigas estão acompanhando há {elapsed}
         </Text>

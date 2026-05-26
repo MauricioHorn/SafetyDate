@@ -429,11 +429,11 @@ export default function SafetyModeScreen() {
                   ))}
                 </View>
                 <TouchableOpacity
-                  style={styles.addFirstBtn}
+                  style={styles.addPlaceBtn}
                   onPress={() => router.push('/safe-places')}
                 >
-                  <Ionicons name="add-circle" size={20} color="#FF4D7E" />
-                  <Text style={styles.addFirstText}>Adicionar local</Text>
+                  <Ionicons name="add" size={16} color="#B4B4C7" />
+                  <Text style={styles.addPlaceText}>Adicionar local</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -543,6 +543,7 @@ const styles = StyleSheet.create({
   },
   contactsList: { gap: 8, marginBottom: 8 },
   contactChip: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -570,8 +571,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     backgroundColor: '#151525',
     borderRadius: 999,
     borderWidth: 1,
@@ -592,6 +593,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   addFirstText: { color: '#FF4D7E', fontWeight: '600', fontSize: 14 },
+  addPlaceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  addPlaceText: { color: '#B4B4C7', fontWeight: '500', fontSize: 13 },
   startBtn: {
     backgroundColor: '#10B981',
     padding: 18,

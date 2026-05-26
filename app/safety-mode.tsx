@@ -541,7 +541,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     letterSpacing: 0.3,
   },
-  contactsList: { gap: 8, marginBottom: 8 },
+  contactsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
   contactChip: {
     alignSelf: 'flex-start',
     flexDirection: 'row',

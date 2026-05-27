@@ -53,6 +53,12 @@ function formatProcessDate(data: string | null | undefined): string | null {
   return d.toLocaleDateString('pt-BR');
 }
 
+function polaridadeStyle(p: string | undefined) {
+  if (p === 'Ativo') return styles.polaridadeAutor;
+  if (p === 'Passivo') return styles.polaridadeReu;
+  return styles.polaridadeNeutra;
+}
+
 type FlagReason = { texto: string; nivel: 'critico' | 'atencao' | 'positivo' };
 
 interface BdcAddress {
@@ -95,16 +101,17 @@ type ReportWithBdc = BackgroundCheck & {
 
 function ordenarProcessosPorRecencia(processes: any[]): any[] {
   return [...processes].sort((a, b) => {
+    const catA = a?.categoria === 'criminal' ? 0 : 1;
+    const catB = b?.categoria === 'criminal' ? 0 : 1;
+    if (catA !== catB) return catA - catB;
+
     const dataA = a?.dataUltimaMovimentacao || '';
     const dataB = b?.dataUltimaMovimentacao || '';
-
     const aInvalida = !dataA || dataA.startsWith('0001');
     const bInvalida = !dataB || dataB.startsWith('0001');
-
     if (aInvalida && !bInvalida) return 1;
     if (!aInvalida && bInvalida) return -1;
     if (aInvalida && bInvalida) return 0;
-
     return dataB.localeCompare(dataA);
   });
 }
@@ -445,6 +452,23 @@ export default function Report() {
                 {proc.tribunal && (
                   <Text style={styles.processTribunal}>{proc.tribunal}</Text>
                 )}
+                <View style={styles.processInfoRow}>
+                  <Text style={[styles.processPolaridade, polaridadeStyle(proc.polaridade)]}>
+                    {proc.polaridade === 'Ativo'
+                      ? 'Autor'
+                      : proc.polaridade === 'Passivo'
+                        ? 'Réu'
+                        : 'Posição não informada'}
+                  </Text>
+                  {proc.categoria && (
+                    <>
+                      <Text style={[styles.processPolaridade, styles.processSeparator]}>•</Text>
+                      <Text style={[styles.processPolaridade, styles.processCategoria]}>
+                        {proc.categoria === 'criminal' ? 'Criminal' : 'Cível'}
+                      </Text>
+                    </>
+                  )}
+                </View>
                 {proc.assuntos?.[0]?.nome && (
                   <Text style={styles.processSubject}>{proc.assuntos[0].nome}</Text>
                 )}
@@ -871,6 +895,13 @@ const styles = StyleSheet.create({
   processDate: { ...typography.small, color: colors.textMuted },
   processNumber: { ...typography.small, color: colors.textSecondary, fontFamily: 'monospace', marginTop: 4 },
   processTribunal: { ...typography.caption, color: colors.text, fontWeight: '600', marginTop: 2 },
+  processInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  processPolaridade: { fontSize: 12, fontWeight: '600' },
+  processSeparator: { color: colors.textMuted },
+  processCategoria: { color: colors.textMuted },
+  polaridadeAutor: { color: colors.flagGreen },
+  polaridadeReu: { color: colors.flagYellow },
+  polaridadeNeutra: { color: colors.textMuted },
   processSubject: { ...typography.small, color: colors.textSecondary, marginTop: 2 },
   disclaimerContainer: {
     paddingVertical: spacing.xl,

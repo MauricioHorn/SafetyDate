@@ -15,6 +15,8 @@ export interface ResultadoScoring {
   motivos: MotivoBandeira[];
   /** Quantidade de processos criminais GRAVES (subset de criminalProcessesCount) */
   criminaisGravesCount: number;
+  /** Processos criminais leves (honra) — todos, autor ou réu (cards/resumo) */
+  criminaisLevesCount: number;
 }
 
 // Palavras-chave que sempre disparam VERMELHA quando aparecem em classe/assuntos
@@ -53,7 +55,7 @@ const KEYWORDS_GRAVES = [
   'medida protetiva',
 ];
 
-// Palavras-chave criminais "comuns" — disparam VERMELHA se há cutoff de até 5 anos
+// Palavras-chave criminais "comuns" — disparam VERMELHA se há cutoff de até 2 anos
 const KEYWORDS_CRIMINAIS_COMUNS = [
   'furto',
   'roubo',
@@ -66,6 +68,19 @@ const KEYWORDS_CRIMINAIS_COMUNS = [
   'crime',
   'penal',
   'criminal',
+];
+
+// Crimes contra a honra — leves pela ótica de segurança física
+// São crimes pela lei (Código Penal), mas não comunicam risco de violência.
+// Exibidos como "Criminal" pra honestidade jurídica, mas no scoring têm peso leve.
+const KEYWORDS_CRIMINAL_LEVE = [
+  'calunia',
+  'injuria',
+  'difamacao',
+  'queixa-crime',
+  'queixa crime',
+  'crimes contra a honra',
+  'contra a honra',
 ];
 
 /** Normaliza texto pra comparação com keywords (lowercase, sem acentos). */
@@ -112,10 +127,20 @@ export function ehProcessoCriminalComum(p: ProcessoJudicial): boolean {
   return KEYWORDS_CRIMINAIS_COMUNS.some((k) => texto.includes(k));
 }
 
+/** Crimes contra a honra — criminal na lei, peso leve no scoring. */
+export function ehProcessoCriminalLeve(p: ProcessoJudicial): boolean {
+  const texto = textoCompletoProcesso(p);
+  if (ehProcessoGrave(p)) return false;
+  if (ehProcessoCriminalComum(p)) return false;
+  return KEYWORDS_CRIMINAL_LEVE.some((k) => texto.includes(k));
+}
+
 /** Verifica se processo é cível. */
 export function ehProcessoCivel(p: ProcessoJudicial): boolean {
   const texto = textoCompletoProcesso(p);
-  if (ehProcessoGrave(p) || ehProcessoCriminalComum(p)) return false;
+  if (ehProcessoGrave(p) || ehProcessoCriminalComum(p) || ehProcessoCriminalLeve(p)) {
+    return false;
+  }
   return (
     texto.includes('civel') ||
     texto.includes('cível') ||
@@ -127,6 +152,17 @@ export function ehProcessoCivel(p: ProcessoJudicial): boolean {
   );
 }
 
+// Para criminal comum: réu, neutro ou polaridade ausente continuam contando (não-autor).
+function ehNaoAutor(p: ProcessoJudicial): boolean {
+  return p.polaridade !== 'Ativo';
+}
+
+// Para cível: SÓ conta se polaridade for EXPLICITAMENTE 'Passivo' (ré confirmada).
+// Neutro, undefined e Ativo NÃO contam — não presumir que é ré sem certeza.
+function ehReuConfirmado(p: ProcessoJudicial): boolean {
+  return p.polaridade === 'Passivo';
+}
+
 /**
  * Classifica bandeira baseada em regras objetivas.
  * Recebe processos e dados BDC (pra detectar óbito).
@@ -135,12 +171,11 @@ export function ehProcessoCivel(p: ProcessoJudicial): boolean {
  * 🔴 VERMELHA se:
  *  - Pessoa consta como falecida (BDC)
  *  - Algum processo grave (palavras-chave da lista, sem cutoff temporal)
- *  - 3+ processos cíveis recentes (até 3 anos) com padrão de inadimplência/cobrança
- *  - Algum processo criminal comum nos últimos 5 anos
+ *  - Algum processo criminal comum nos últimos 2 anos
  *
  * 🟡 AMARELA se:
- *  - 1-2 processos cíveis recentes
- *  - Processos criminais comuns >5 anos
+ *  - Processos cíveis recentes (ré confirmada, últimos 3 anos)
+ *  - Processos criminais comuns >2 anos
  *
  * 🟢 VERDE se:
  *  - Nada do acima
@@ -150,6 +185,7 @@ export function classificarBandeira(
   bdcData: BdcPessoaCadastro | null,
 ): ResultadoScoring {
   const motivos: MotivoBandeira[] = [];
+  const criminaisLevesTotais = processos.filter(ehProcessoCriminalLeve).length;
 
   // ÓBITO — bandeira vermelha automática
   if (bdcData?.temObito === true) {
@@ -161,13 +197,19 @@ export function classificarBandeira(
       bandeira: 'red',
       motivos,
       criminaisGravesCount: 0,
+      criminaisLevesCount: criminaisLevesTotais,
     };
   }
 
   // Filtros e contagens
   const graves = processos.filter(ehProcessoGrave);
-  const criminaisComuns = processos.filter(ehProcessoCriminalComum);
-  const civeis = processos.filter(ehProcessoCivel);
+  const criminaisComuns = processos.filter(
+    (p) => ehProcessoCriminalComum(p) && ehNaoAutor(p),
+  );
+  const criminaisLeves = processos.filter(
+    (p) => ehProcessoCriminalLeve(p) && ehReuConfirmado(p),
+  );
+  const civeis = processos.filter((p) => ehProcessoCivel(p) && ehReuConfirmado(p));
 
   const civeisRecentes = civeis.filter((p) => {
     const idade = idadeProcessoEmAnos(p);
@@ -175,11 +217,15 @@ export function classificarBandeira(
   });
   const criminaisComunsRecentes = criminaisComuns.filter((p) => {
     const idade = idadeProcessoEmAnos(p);
-    return idade !== null && idade <= 5;
+    return idade !== null && idade <= 2;
   });
   const criminaisComunsAntigos = criminaisComuns.filter((p) => {
     const idade = idadeProcessoEmAnos(p);
-    return idade !== null && idade > 5;
+    return idade !== null && idade > 2;
+  });
+  const criminaisLevesRecentes = criminaisLeves.filter((p) => {
+    const idade = idadeProcessoEmAnos(p);
+    return idade !== null && idade <= 3;
   });
 
   // VERMELHA — qualquer processo grave (sem cutoff)
@@ -190,7 +236,7 @@ export function classificarBandeira(
     });
     if (criminaisComunsRecentes.length > 0) {
       motivos.push({
-        texto: `${criminaisComunsRecentes.length} processo${criminaisComunsRecentes.length > 1 ? 's' : ''} criminal recente${criminaisComunsRecentes.length > 1 ? 's' : ''} (últimos 5 anos)`,
+        texto: `${criminaisComunsRecentes.length} processo${criminaisComunsRecentes.length > 1 ? 's' : ''} criminal recente${criminaisComunsRecentes.length > 1 ? 's' : ''} (últimos 2 anos)`,
         nivel: 'critico',
       });
     }
@@ -204,32 +250,14 @@ export function classificarBandeira(
       bandeira: 'red',
       motivos,
       criminaisGravesCount: graves.length,
+      criminaisLevesCount: criminaisLevesTotais,
     };
   }
 
-  // VERMELHA — 3+ processos cíveis recentes (padrão de inadimplência)
-  if (civeisRecentes.length >= 3) {
-    motivos.push({
-      texto: `${civeisRecentes.length} processos cíveis nos últimos 3 anos — padrão de inadimplência ou litígios frequentes`,
-      nivel: 'critico',
-    });
-    if (criminaisComunsRecentes.length > 0) {
-      motivos.push({
-        texto: `${criminaisComunsRecentes.length} processo${criminaisComunsRecentes.length > 1 ? 's' : ''} criminal recente${criminaisComunsRecentes.length > 1 ? 's' : ''}`,
-        nivel: 'critico',
-      });
-    }
-    return {
-      bandeira: 'red',
-      motivos,
-      criminaisGravesCount: 0,
-    };
-  }
-
-  // VERMELHA — processo criminal comum nos últimos 5 anos
+  // VERMELHA — processo criminal comum nos últimos 2 anos
   if (criminaisComunsRecentes.length > 0) {
     motivos.push({
-      texto: `${criminaisComunsRecentes.length} processo${criminaisComunsRecentes.length > 1 ? 's' : ''} criminal recente${criminaisComunsRecentes.length > 1 ? 's' : ''} (últimos 5 anos)`,
+      texto: `${criminaisComunsRecentes.length} processo${criminaisComunsRecentes.length > 1 ? 's' : ''} criminal recente${criminaisComunsRecentes.length > 1 ? 's' : ''} (últimos 2 anos)`,
       nivel: 'critico',
     });
     if (civeisRecentes.length > 0) {
@@ -242,6 +270,7 @@ export function classificarBandeira(
       bandeira: 'red',
       motivos,
       criminaisGravesCount: 0,
+      criminaisLevesCount: criminaisLevesTotais,
     };
   }
 
@@ -254,9 +283,15 @@ export function classificarBandeira(
       nivel: 'atencao',
     });
   }
+  if (criminaisLevesRecentes.length > 0) {
+    sinaisAtencao.push({
+      texto: `${criminaisLevesRecentes.length} processo${criminaisLevesRecentes.length > 1 ? 's' : ''} criminal${criminaisLevesRecentes.length > 1 ? 'is' : ''} de menor potencial (últimos 3 anos)`,
+      nivel: 'atencao',
+    });
+  }
   if (criminaisComunsAntigos.length > 0) {
     sinaisAtencao.push({
-      texto: `${criminaisComunsAntigos.length} processo${criminaisComunsAntigos.length > 1 ? 's' : ''} criminal antigo${criminaisComunsAntigos.length > 1 ? 's' : ''} (mais de 5 anos)`,
+      texto: `${criminaisComunsAntigos.length} processo${criminaisComunsAntigos.length > 1 ? 's' : ''} criminal antigo${criminaisComunsAntigos.length > 1 ? 's' : ''} (mais de 2 anos)`,
       nivel: 'atencao',
     });
   }
@@ -271,6 +306,7 @@ export function classificarBandeira(
       bandeira: 'yellow',
       motivos,
       criminaisGravesCount: 0,
+      criminaisLevesCount: criminaisLevesTotais,
     };
   }
 
@@ -291,5 +327,6 @@ export function classificarBandeira(
     bandeira: 'green',
     motivos,
     criminaisGravesCount: 0,
+    criminaisLevesCount: criminaisLevesTotais,
   };
 }

@@ -4,6 +4,18 @@ const BDC_ENDPOINT = 'https://plataforma.bigdatacorp.com.br/pessoas';
 const DATASETS = 'basic_data,processes';
 const TIMEOUT_MS = 30000;
 
+type PolaridadePt = 'Ativo' | 'Passivo' | 'Neutro';
+
+/** Valores que a BDC retorna (inglês maiúsculo ou português) → português */
+const MAPA_POLARIDADE: Record<string, PolaridadePt> = {
+  ACTIVE: 'Ativo',
+  PASSIVE: 'Passivo',
+  NEUTRAL: 'Neutro',
+  Ativo: 'Ativo',
+  Passivo: 'Passivo',
+  Neutro: 'Neutro',
+};
+
 interface BdcRequestBody {
   q: string;
   Datasets: string;
@@ -213,7 +225,10 @@ function parseBdcDate(value: string | null): string | null {
   return null;
 }
 
-function parseProcesses(raw: Record<string, unknown> | undefined): ProcessoJudicial[] {
+function parseProcesses(
+  raw: Record<string, unknown> | undefined,
+  pessoaCpf?: string,
+): ProcessoJudicial[] {
   if (!raw) return [];
   const lawsuits = raw['Lawsuits'] as Array<Record<string, unknown>> | undefined;
   if (!lawsuits) return [];
@@ -235,7 +250,8 @@ function parseProcesses(raw: Record<string, unknown> | undefined): ProcessoJudic
       grau: (l['CourtLevel'] as string) || '',
       movimentos: [],
       status: (l['Status'] as string) || '',
-      polaridade: extractPolaridade(l),
+      polaridade: extractPolaridade(l, pessoaCpf),
+      categoria: classificarCategoria(l),
       segredoJustica: ((l['Status'] as string) || '').toUpperCase().includes('SEGREDO'),
       dataDistribuicao: (l['PublicationDate'] as string) || '',
       dataUltimaMovimentacao: (l['LastMovementDate'] as string) || '',
@@ -244,13 +260,57 @@ function parseProcesses(raw: Record<string, unknown> | undefined): ProcessoJudic
   });
 }
 
-function extractPolaridade(lawsuit: Record<string, unknown>): 'Ativo' | 'Passivo' | 'Neutro' | undefined {
+function classificarCategoria(lawsuit: Record<string, unknown>): 'civel' | 'criminal' {
+  const textoBruto = [
+    (lawsuit['Type'] as string) || '',
+    (lawsuit['MainSubject'] as string) || '',
+    (lawsuit['CourtType'] as string) || '',
+    (lawsuit['InferredCNJSubjectName'] as string) || '',
+    (lawsuit['InferredBroadCNJSubjectName'] as string) || '',
+  ].join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  const KEYWORDS_CRIMINAL = [
+    'maria da penha', 'violencia domestica', 'feminicidio', 'estupro',
+    'violencia sexual', 'importunacao sexual', 'estupro de vulneravel',
+    'lesao corporal', 'homicidio', 'sequestro', 'carcere privado',
+    'ameaca', 'stalking', 'perseguicao', 'trafico de pessoas',
+    'pedofilia', 'pornografia infantil', 'mandado de prisao', 'medida protetiva',
+    'furto', 'roubo', 'estelionato', 'fraude', 'apropriacao indebita',
+    'receptacao', 'crime', 'penal', 'criminal',
+    'calunia', 'injuria', 'difamacao',
+    'queixa-crime', 'queixa crime',
+  ];
+
+  for (const k of KEYWORDS_CRIMINAL) {
+    if (textoBruto.includes(k)) return 'criminal';
+  }
+  return 'civel';
+}
+
+function extractPolaridade(
+  lawsuit: Record<string, unknown>,
+  pessoaCpf: string | undefined,
+): PolaridadePt | undefined {
   const parties = lawsuit['Parties'] as Array<Record<string, unknown>> | undefined;
   if (!parties || parties.length === 0) return undefined;
+
+  const cpfNorm = (pessoaCpf || '').replace(/\D/g, '');
+
+  if (cpfNorm) {
+    for (const p of parties) {
+      const docParty = ((p['Doc'] as string) || '').replace(/\D/g, '');
+      if (docParty && docParty === cpfNorm) {
+        const polarity = (p['Polarity'] as string) || '';
+        return MAPA_POLARIDADE[polarity];
+      }
+    }
+  }
+
   for (const p of parties) {
     const polarity = (p['Polarity'] as string) || '';
-    if (polarity === 'Ativo' || polarity === 'Passivo' || polarity === 'Neutro') {
-      return polarity;
+    const mapped = MAPA_POLARIDADE[polarity];
+    if (mapped === 'Ativo' || mapped === 'Passivo') {
+      return mapped;
     }
   }
   return undefined;
@@ -267,7 +327,7 @@ function extractPartes(lawsuit: Record<string, unknown>): Array<{
   return parties.map((p) => ({
     nome: (p['Name'] as string) || '',
     documento: (p['Doc'] as string) || undefined,
-    polaridade: (p['Polarity'] as string) || 'Neutro',
+    polaridade: MAPA_POLARIDADE[(p['Polarity'] as string) || ''] || 'Neutro',
     specificType: ((p['Type'] as Record<string, unknown>)?.['SpecificType'] as string) || '',
   }));
 }
@@ -311,7 +371,7 @@ export async function buscarProcessosPorCpf(cpf: string): Promise<ProcessoJudici
     const q = buildQuery({ cpf });
     const response = await callBdc({ q, Datasets: 'processes' });
     const result = response.Result?.[0];
-    return parseProcesses(result?.Processes as Record<string, unknown>);
+    return parseProcesses(result?.Processes as Record<string, unknown>, cpf);
   } catch (err) {
     console.error('[BDC] erro buscando processos:', err);
     return [];
@@ -341,7 +401,14 @@ export async function consultarPessoa(opts: {
     const response = await callBdc({ q, Datasets: DATASETS });
     const result = response.Result?.[0];
     const cadastro = parseBasicData(result?.BasicData);
-    const processos = parseProcesses(result?.Processes as Record<string, unknown>);
+    // Pegar o CPF do resultado da BDC (vem no BasicData.TaxIdNumber).
+    // Fallback pra opts.cpf caso o BDC não tenha retornado (pesquisa CPF puro).
+    const cpfDoResultado = (result?.BasicData as Record<string, unknown> | undefined)?.['TaxIdNumber'] as string | undefined;
+    const cpfParaPolaridade = cpfDoResultado || opts.cpf;
+    const processos = parseProcesses(
+      result?.Processes as Record<string, unknown>,
+      cpfParaPolaridade,
+    );
 
     if (!cadastro) {
       return {

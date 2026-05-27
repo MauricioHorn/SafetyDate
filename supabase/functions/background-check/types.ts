@@ -15,6 +15,7 @@ export interface ProcessoJudicial {
   movimentos?: Array<{ nome: string; dataHora: string }>;
   status?: string;
   polaridade?: 'Ativo' | 'Passivo' | 'Neutro';
+  categoria?: 'civel' | 'criminal';
   segredoJustica?: boolean;
   dataDistribuicao?: string;
   dataUltimaMovimentacao?: string;

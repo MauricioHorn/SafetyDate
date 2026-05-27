@@ -300,7 +300,7 @@ serve(async (req: Request) => {
     const bandeiraFinal = scoring.bandeira;
     const criminaisFinal = Math.max(
       analise.criminalProcessesCount,
-      scoring.criminaisGravesCount,
+      scoring.criminaisGravesCount + scoring.criminaisLevesCount,
     );
 
     const targetName =

@@ -293,8 +293,7 @@ export default function FakeCallSetupScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.lead}>
-            Agende uma chamada simulada para ter uma desculpa de sair com segurança. Não substitui
-            a tela nativa do telefone — é uma simulação dentro do app.
+            Agende uma chamada simulada para ter uma desculpa de sair com segurança.
           </Text>
 
           <Text style={styles.label}>Quem está ligando</Text>
@@ -394,6 +393,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xl,
     lineHeight: 20,
+    textAlign: 'center',
   },
   label: {
     ...typography.small,

@@ -69,10 +69,17 @@ export default function History() {
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.target_name}</Text>
+                <View style={styles.itemNameRow}>
+                  <Text style={[styles.itemName, { flex: 1 }]} numberOfLines={1}>
+                    {item.target_name}
+                  </Text>
+                  <View style={styles.itemBadge}>
+                    <FlagBadge flag={item.flag} size="sm" />
+                  </View>
+                </View>
                 <View style={styles.itemMeta}>
                   <Ionicons name="calendar-outline" size={12} color={colors.textMuted} />
-                  <Text style={styles.itemMetaText}>
+                  <Text style={styles.itemMetaText} numberOfLines={1}>
                     {new Date(item.created_at).toLocaleDateString('pt-BR', {
                       day: '2-digit',
                       month: 'short',
@@ -83,14 +90,13 @@ export default function History() {
                     <>
                       <Text style={styles.itemMetaDivider}>•</Text>
                       <Ionicons name="document-text-outline" size={12} color={colors.textMuted} />
-                      <Text style={styles.itemMetaText}>
+                      <Text style={styles.itemMetaText} numberOfLines={1}>
                         {item.processes_count} {item.processes_count === 1 ? 'processo' : 'processos'}
                       </Text>
                     </>
                   )}
                 </View>
               </View>
-              <FlagBadge flag={item.flag} size="sm" />
             </View>
           </Card>
         )}
@@ -114,10 +120,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.primary + '40',
   },
   itemInitials: { color: colors.primary, fontWeight: '800', fontSize: 14 },
-  itemName: { ...typography.bodyBold, color: colors.text, marginBottom: 4 },
-  itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  itemNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  itemName: { ...typography.bodyBold, color: colors.text },
+  itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, flexWrap: 'nowrap' },
   itemMetaText: { ...typography.small, color: colors.textMuted },
   itemMetaDivider: { color: colors.textMuted, marginHorizontal: 2 },
+  itemBadge: { flexShrink: 0 },
   empty: { alignItems: 'center', paddingTop: spacing.xxl * 2, paddingHorizontal: spacing.lg },
   emptyTitle: { ...typography.h3, color: colors.text, marginTop: spacing.md },
   emptyText: { ...typography.caption, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.sm },

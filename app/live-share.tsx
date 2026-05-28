@@ -16,15 +16,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import * as Location from 'expo-location';
+import * as Battery from 'expo-battery';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '@/components/Button';
 import { colors, spacing, radius, typography } from '@/lib/theme';
+import { supabase } from '@/lib/supabase';
 import {
   getActiveSession,
   getEmergencyContacts,
   startLiveShare,
   stopLiveShare,
+  openWhatsAppLiveShare,
   SafetySession,
 } from '@/lib/safety';
 
@@ -223,11 +226,56 @@ export default function LiveShareScreen() {
       if (!granted) return;
 
       setStarting(true);
-      await startLiveShare(resolvedContext);
+      const sessionId = await startLiveShare(resolvedContext);
       await AsyncStorage.setItem(LIVESHARE_CONTEXT_STORAGE_KEY, resolvedContext);
       await scheduleLiveShareReminder();
       await refreshSession();
       setActiveContext(resolvedContext);
+
+      // Abre WhatsApp do contato principal com a mensagem pronta.
+      // O usuário ainda precisa tocar em "Enviar" no WhatsApp — não enviamos automaticamente.
+      try {
+        const primary = contacts.find((c) => c.is_primary) || contacts[0];
+        if (primary) {
+          const gps = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          const batteryRaw = await Battery.getBatteryLevelAsync().catch(() => null);
+          const batteryLevel = batteryRaw !== null ? Math.round(batteryRaw * 100) : undefined;
+
+          // Busca o view_token específico do contato principal pra montar o link /track.
+          // Se falhar (ex: rede), seguimos sem o link — o WhatsApp ainda abre com o pin do Maps.
+          let trackUrl: string | undefined;
+          try {
+            const { data: viewRow } = await supabase
+              .from('safety_session_views')
+              .select('view_token')
+              .eq('session_id', sessionId)
+              .eq('contact_id', primary.id)
+              .maybeSingle();
+            if (viewRow?.view_token) {
+              trackUrl = `https://elasapp.com.br/track/${viewRow.view_token}`;
+            }
+          } catch (tokenErr) {
+            console.warn('[live-share] fetch view_token failed:', tokenErr);
+          }
+
+          await openWhatsAppLiveShare(
+            primary,
+            {
+              latitude: gps.coords.latitude,
+              longitude: gps.coords.longitude,
+              accuracy: gps.coords.accuracy ?? undefined,
+              batteryLevel,
+              timestamp: new Date().toISOString(),
+            },
+            resolvedContext,
+            trackUrl
+          );
+        }
+      } catch (whatsErr) {
+        console.warn('[live-share] open whatsapp failed:', whatsErr);
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Não foi possível compartilhar.';
       Alert.alert('Erro', message);

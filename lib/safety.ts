@@ -599,6 +599,33 @@ export async function openWhatsAppPriority(
   await Linking.openURL(url);
 }
 
+export async function openWhatsAppLiveShare(
+  contact: EmergencyContact,
+  location: LocationData,
+  context: string,
+  trackUrl?: string
+): Promise<void> {
+  const cleanNumber = contact.phone.replace(/\D/g, '');
+  const lines: string[] = [
+    `Oi! Tô compartilhando minha localização com você pelo ELAS.`,
+    `Contexto: ${context}`,
+    ``,
+  ];
+  if (trackUrl) {
+    lines.push(`🛰️ Acompanhar ao vivo: ${trackUrl}`);
+  } else {
+    const mapsLink = `https://maps.google.com/?q=${location.latitude},${location.longitude}`;
+    lines.push(`📍 Onde estou agora: ${mapsLink}`);
+  }
+  lines.push(`🔋 Bateria: ${location.batteryLevel ?? 0}%`);
+  const message = lines.join('\n');
+
+  const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+  const canOpen = await Linking.canOpenURL(url);
+  if (!canOpen) return;
+  await Linking.openURL(url);
+}
+
 export async function registerPushToken(token: string): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');

@@ -7,9 +7,12 @@ import {
   Switch,
   Pressable,
   Alert,
+  AppState,
+  type AppStateStatus,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +35,7 @@ let pendingTimeout: ReturnType<typeof setTimeout> | null = null;
 let scheduledNotificationId: string | null = null;
 let notificationListenersAttached = false;
 let navigatingToIncoming = false;
+let appState: AppStateStatus = AppState.currentState;
 
 type FakeCallParams = {
   callerName: string;
@@ -83,9 +87,44 @@ async function ensureAndroidChannel() {
   });
 }
 
+function isFakeCallNotificationData(
+  data: Record<string, unknown> | undefined
+): boolean {
+  return data?.type === FAKE_CALL_NOTIFICATION_TYPE;
+}
+
 function attachFakeCallNotificationListeners() {
   if (notificationListenersAttached) return;
   notificationListenersAttached = true;
+
+  AppState.addEventListener('change', (next) => {
+    appState = next;
+  });
+
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const data = notification.request.content.data as Record<string, unknown>;
+      const inForeground = appState === 'active';
+
+      if (isFakeCallNotificationData(data) && inForeground) {
+        return {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: false,
+          shouldShowList: false,
+        };
+      }
+
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      };
+    },
+  });
 
   Notifications.addNotificationReceivedListener((notification) => {
     const params = paramsFromNotificationData(
@@ -162,20 +201,29 @@ export default function FakeCallSetupScreen() {
   const [audioOn, setAudioOn] = useState(true);
   const [scheduling, setScheduling] = useState(false);
   const minutesInputRef = useRef<TextInput>(null);
+  const [toastText, setToastText] = useState<string | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  const showToast = (message: string) => {
+    setToastText(message);
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      setTimeout(() => {
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }).start(() => setToastText(null));
+      }, 2500);
+    });
+  };
 
   useEffect(() => {
     attachFakeCallNotificationListeners();
     void ensureAndroidChannel();
-
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
   }, []);
 
   const syncMinutes = (next: number) => {
@@ -231,9 +279,10 @@ export default function FakeCallSetupScreen() {
         await ensureAndroidChannel();
         scheduledNotificationId = await Notifications.scheduleNotificationAsync({
           content: {
-            title: 'Chamada recebida',
-            body: name,
+            title: `📞 ${name}`,
+            body: 'Chamada recebida',
             sound: 'default',
+            interruptionLevel: 'timeSensitive',
             data: {
               type: FAKE_CALL_NOTIFICATION_TYPE,
               ...params,
@@ -258,12 +307,10 @@ export default function FakeCallSetupScreen() {
 
       void incrementFakeCallCount();
 
-      Alert.alert(
-        'Ligação agendada',
-        `Em ${mins} minuto${mins === 1 ? '' : 's'} você receberá a chamada simulada de "${name}".\n\n` +
-          'Com o app aberto, a tela abre automaticamente. Em segundo plano, use a notificação (build real recomendado).'
-      );
-      router.back();
+      showToast(`✓ Ligação agendada para daqui ${mins} min`);
+      setTimeout(() => {
+        router.back();
+      }, 3000);
     } catch (error) {
       console.error('[fake-call] schedule failed:', error);
       Alert.alert('Erro', 'Não foi possível agendar a ligação. Tente novamente.');
@@ -371,6 +418,11 @@ export default function FakeCallSetupScreen() {
           />
         </ScrollView>
       </KeyboardAvoidingView>
+      {toastText && (
+        <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
+          <Text style={styles.toastText}>{toastText}</Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -471,4 +523,31 @@ const styles = StyleSheet.create({
   toggleTextWrap: { flex: 1 },
   toggleLabel: { ...typography.bodyBold, color: colors.text },
   toggleHint: { ...typography.small, color: colors.textSecondary, marginTop: 2 },
+  toast: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    left: 24,
+    right: 24,
+    backgroundColor: colors.surfaceElevated,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.success,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  toastText: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });

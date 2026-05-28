@@ -246,40 +246,46 @@ export default function FakeCallIncomingScreen() {
           </Text>
         </View>
 
-        <View style={styles.avatarWrap}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitials}>{initials}</Text>
-            </View>
-          )}
-        </View>
-
         {phase === 'ringing' ? (
           <View style={styles.bottomRinging}>
-            <View style={styles.sliderTrack} {...panResponder.panHandlers}>
-              <Animated.Text style={[styles.sliderHint, { opacity: arrowOpacity }]}>
-                deslize para atender  ›››
-              </Animated.Text>
-              <Animated.View
-                style={[
-                  styles.sliderThumb,
-                  { transform: [{ translateX: thumbTranslate }] },
-                ]}
-              >
-                <Ionicons name="call" size={28} color="#fff" />
-              </Animated.View>
+            <View style={styles.secondaryRow}>
+              <View style={styles.secondaryItem}>
+                <View style={styles.secondaryCircle}>
+                  <Ionicons name="chatbubble" size={26} color="#fff" />
+                </View>
+                <Text style={styles.secondaryLabel}>Mensagem</Text>
+              </View>
+              <View style={styles.secondaryItem}>
+                <View style={styles.secondaryCircle}>
+                  <Ionicons name="alarm" size={28} color="#fff" />
+                </View>
+                <Text style={styles.secondaryLabel}>Lembrar</Text>
+              </View>
             </View>
 
-            <Pressable
-              style={({ pressed }) => [styles.declineBtn, pressed && { opacity: 0.85 }]}
-              onPress={handleDecline}
-              accessibilityLabel="Recusar chamada"
-            >
-              <Ionicons name="close" size={32} color="#fff" />
-            </Pressable>
-            <Text style={styles.declineLabel}>Recusar</Text>
+            <View style={styles.answerRow}>
+              <View style={styles.answerItem}>
+                <Pressable
+                  style={({ pressed }) => [styles.declineBtn, pressed && { opacity: 0.85 }]}
+                  onPress={handleDecline}
+                  accessibilityLabel="Recusar chamada"
+                >
+                  <Ionicons name="call" size={32} color="#fff" style={{ transform: [{ rotate: '135deg' }] }} />
+                </Pressable>
+                <Text style={styles.answerLabel}>Recusar</Text>
+              </View>
+
+              <View style={styles.answerItem}>
+                <Pressable
+                  style={({ pressed }) => [styles.acceptBtn, pressed && { opacity: 0.85 }]}
+                  onPress={() => void handleAnswer()}
+                  accessibilityLabel="Atender chamada"
+                >
+                  <Ionicons name="call" size={32} color="#fff" />
+                </Pressable>
+                <Text style={styles.answerLabel}>Atender</Text>
+              </View>
+            </View>
           </View>
         ) : (
           <View style={styles.bottomInCall}>
@@ -403,6 +409,49 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: IOS_MUTED,
     fontSize: 14,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 36,
+    marginBottom: 40,
+  },
+  secondaryItem: { alignItems: 'center', width: 96 },
+  secondaryCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryLabel: {
+    marginTop: 8,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  answerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 36,
+  },
+  answerItem: { alignItems: 'center', width: 96 },
+  acceptBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: IOS_GREEN,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  answerLabel: {
+    marginTop: 8,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '400',
   },
   bottomInCall: {
     width: '100%',

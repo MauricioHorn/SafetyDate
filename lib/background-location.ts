@@ -83,10 +83,19 @@ async function upsertSessionLocationWithRetry(
     attempt += 1;
 
     try {
-      const upsertPromise = Promise.resolve(
-        supabase.from('safety_sessions').upsert(payload, { onConflict: 'id' })
+      const updatePromise = Promise.resolve(
+        supabase
+          .from('safety_sessions')
+          .update({
+            current_latitude: payload.current_latitude,
+            current_longitude: payload.current_longitude,
+            current_accuracy_meters: payload.current_accuracy_meters,
+            battery_level: payload.battery_level,
+            last_location_update: payload.last_location_update,
+          })
+          .eq('id', payload.id)
       );
-      const { error } = await withTimeout(upsertPromise, options.timeoutMs);
+      const { error } = await withTimeout(updatePromise, options.timeoutMs);
 
       if (error) {
         throw error;

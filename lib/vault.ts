@@ -3,6 +3,10 @@ import * as Crypto from 'expo-crypto';
 import Aes from 'react-native-aes-crypto';
 import { supabase } from './supabase';
 
+// Flag em memória: marca user_ids que tiveram a chave guardada no Keychain
+// nesta sessão do app. Reseta quando o app é fechado/killado.
+const unlockedUserIds = new Set<string>();
+
 const SECURE_STORE_KEY_PREFIX = 'elas_vault_';
 const PBKDF2_ITERATIONS = 100000;
 const KEY_LENGTH_BYTES = 32; // AES-256
@@ -87,6 +91,7 @@ export async function storeKeyInKeychain(userId: string, key: string): Promise<v
     requireAuthentication: true,
     keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
   });
+  unlockedUserIds.add(userId);
 }
 
 /**
@@ -103,6 +108,7 @@ export async function getKeyFromKeychain(userId: string): Promise<string | null>
  */
 export async function removeKeyFromKeychain(userId: string): Promise<void> {
   await SecureStore.deleteItemAsync(`${SECURE_STORE_KEY_PREFIX}${userId}`);
+  unlockedUserIds.delete(userId);
 }
 
 /**
@@ -219,12 +225,13 @@ export async function lockVault(userId: string): Promise<void> {
  * NÃO retorna a chave, só boolean.
  */
 export async function isVaultUnlocked(userId: string): Promise<boolean> {
-  try {
-    const key = await getKeyFromKeychain(userId);
-    return !!key;
-  } catch {
-    return false;
-  }
+  // Apenas consulta a flag em memória — NÃO dispara Face ID.
+  // A flag é setada por storeKeyInKeychain (após unlock bem-sucedido)
+  // e removida por removeKeyFromKeychain (lock ou reset).
+  // Quando o app é killado, a flag some, então isVaultUnlocked volta a false
+  // mesmo que a chave ainda esteja no Keychain — comportamento desejado:
+  // a cada nova sessão do app, exige senha + Face ID de novo.
+  return unlockedUserIds.has(userId);
 }
 
 /**

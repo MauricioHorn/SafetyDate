@@ -135,16 +135,6 @@ export default function Home() {
               Ligação falsa
             </Text>
           </Pressable>
-          <Pressable
-            style={styles.secondaryCard}
-            onPress={() => router.push('/live-share')}
-            accessibilityRole="button"
-          >
-            <Ionicons name="navigate-outline" size={22} color={colors.textSecondary} />
-            <Text style={styles.secondaryCardLabel} numberOfLines={1}>
-              Tô Aqui
-            </Text>
-          </Pressable>
         </View>
 
         {/* TODO: calcular saídas com Modo Seguro do mês corrente */}
@@ -169,13 +159,6 @@ export default function Home() {
                 {initialLoadDone ? String(profile?.fake_call_count ?? 0) : '—'}
               </Text>
               <Text style={styles.statsLabel}>Ligações falsas</Text>
-            </View>
-            <View style={styles.statsDividerV} />
-            <View style={styles.statsCell}>
-              <Text style={styles.statsNumber}>
-                {initialLoadDone ? String(profile?.live_share_count ?? 0) : '—'}
-              </Text>
-              <Text style={styles.statsLabel}>Tô Aqui</Text>
             </View>
           </View>
         </View>

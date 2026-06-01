@@ -196,8 +196,12 @@ export async function startBackgroundLocationUpdates(sessionId: string): Promise
 
   const isStarted = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
   if (isStarted) {
-    console.log('[bg-location] updates already started');
-    return;
+    console.log('[bg-location] found existing task, stopping before restart');
+    try {
+      await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME);
+    } catch (stopErr) {
+      console.warn('[bg-location] stop existing task failed (continuing):', stopErr);
+    }
   }
 
   await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK_NAME, {

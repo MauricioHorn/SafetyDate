@@ -7,6 +7,7 @@ import { supabase, Profile } from '@/lib/supabase';
 import { colors, spacing, radius } from '@/lib/theme';
 import { SafetyModeActiveCard } from '../../components/SafetyModeActiveCard';
 import { getActiveSession, SafetySession } from '../../lib/safety';
+import { hasVault, isVaultUnlocked } from '@/lib/vault';
 
 export default function Home() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -133,6 +134,32 @@ export default function Home() {
             <Ionicons name="call-outline" size={22} color={colors.textSecondary} />
             <Text style={styles.secondaryCardLabel} numberOfLines={1}>
               Ligação falsa
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryCard}
+            onPress={async () => {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser();
+              if (!user) return;
+              const exists = await hasVault(user.id);
+              if (!exists) {
+                router.push('/vault-create');
+                return;
+              }
+              const unlocked = await isVaultUnlocked(user.id);
+              if (unlocked) {
+                router.push('/vault');
+              } else {
+                router.push('/vault-unlock');
+              }
+            }}
+            accessibilityRole="button"
+          >
+            <Ionicons name="lock-closed-outline" size={22} color={colors.textSecondary} />
+            <Text style={styles.secondaryCardLabel} numberOfLines={1}>
+              Cofre
             </Text>
           </Pressable>
         </View>

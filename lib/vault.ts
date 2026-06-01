@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
+import Aes from 'react-native-aes-crypto';
 import { supabase } from './supabase';
 
 const SECURE_STORE_KEY_PREFIX = 'elas_vault_';
@@ -42,11 +43,14 @@ export type VaultItem = {
  * Retorna a chave em base64.
  */
 export async function deriveKey(password: string, salt: string): Promise<string> {
-  // TODO Fase 2: implementar com react-native-aes-crypto pbkdf2
-  // Por enquanto, retornar placeholder pra TypeScript compilar
-  void password;
-  void salt;
-  throw new Error('deriveKey: not implemented yet (Fase 2)');
+  const keyHex = await Aes.pbkdf2(
+    password,
+    salt,
+    PBKDF2_ITERATIONS,
+    KEY_LENGTH_BYTES * 8,
+    'sha256'
+  );
+  return keyHex;
 }
 
 /**
@@ -64,10 +68,14 @@ export async function generateSalt(): Promise<string> {
  * Usa PBKDF2 com salt diferente do encryption_salt.
  */
 export async function hashPassword(password: string, salt: string): Promise<string> {
-  // TODO Fase 2: usar PBKDF2 mesmo formato pra consistência
-  void password;
-  void salt;
-  throw new Error('hashPassword: not implemented yet (Fase 2)');
+  const hashHex = await Aes.pbkdf2(
+    password,
+    salt,
+    PBKDF2_ITERATIONS,
+    KEY_LENGTH_BYTES * 8,
+    'sha256'
+  );
+  return hashHex;
 }
 
 /**
@@ -105,10 +113,12 @@ export async function encryptString(
   plaintext: string,
   key: string
 ): Promise<{ ciphertext: string; iv: string }> {
-  // TODO Fase 2: implementar com react-native-aes-crypto
-  void plaintext;
-  void key;
-  throw new Error('encryptString: not implemented yet (Fase 2)');
+  const ivBytes = await Crypto.getRandomBytesAsync(12);
+  const ivHex = Array.from(ivBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  const ciphertext = await Aes.encrypt(plaintext, key, ivHex, 'aes-256-gcm');
+  return { ciphertext, iv: ivHex };
 }
 
 /**
@@ -119,11 +129,8 @@ export async function decryptString(
   iv: string,
   key: string
 ): Promise<string> {
-  // TODO Fase 2: implementar com react-native-aes-crypto
-  void ciphertext;
-  void iv;
-  void key;
-  throw new Error('decryptString: not implemented yet (Fase 2)');
+  const plaintext = await Aes.decrypt(ciphertext, key, iv, 'aes-256-gcm');
+  return plaintext;
 }
 
 // ============================================================
@@ -146,18 +153,58 @@ export async function hasVault(userId: string): Promise<boolean> {
  * Cria o cofre pela primeira vez: deriva chave, salva metadados, guarda chave no Keychain.
  */
 export async function createVault(userId: string, password: string): Promise<void> {
-  void userId;
-  void password;
-  throw new Error('createVault: not implemented yet (Fase 2)');
+  if (password.length < 8) {
+    throw new Error('A senha precisa ter pelo menos 8 caracteres.');
+  }
+
+  const passwordSalt = await generateSalt();
+  const encryptionSalt = await generateSalt();
+
+  const passwordHash = await hashPassword(password, passwordSalt);
+  const encryptionKey = await deriveKey(password, encryptionSalt);
+
+  const { error } = await supabase.from('vault_metadata').insert({
+    user_id: userId,
+    password_hash: passwordHash,
+    password_salt: passwordSalt,
+    encryption_salt: encryptionSalt,
+    bytes_used: 0,
+    last_unlocked_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(`Erro ao criar cofre: ${error.message}`);
+  }
+
+  await storeKeyInKeychain(userId, encryptionKey);
 }
 
 /**
  * Destranca o cofre: deriva a chave a partir da senha, valida hash, guarda no Keychain.
  */
 export async function unlockVault(userId: string, password: string): Promise<void> {
-  void userId;
-  void password;
-  throw new Error('unlockVault: not implemented yet (Fase 2)');
+  const { data: metadata, error } = await supabase
+    .from('vault_metadata')
+    .select('password_hash, password_salt, encryption_salt')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !metadata) {
+    throw new Error('Cofre não encontrado.');
+  }
+
+  const computedHash = await hashPassword(password, metadata.password_salt);
+  if (computedHash !== metadata.password_hash) {
+    throw new Error('Senha incorreta.');
+  }
+
+  const encryptionKey = await deriveKey(password, metadata.encryption_salt);
+  await storeKeyInKeychain(userId, encryptionKey);
+
+  await supabase
+    .from('vault_metadata')
+    .update({ last_unlocked_at: new Date().toISOString() })
+    .eq('user_id', userId);
 }
 
 /**

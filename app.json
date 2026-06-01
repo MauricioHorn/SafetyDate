@@ -20,9 +20,8 @@
         "NSContactsUsageDescription": "ELAS precisa acessar seus contatos para avisar sua rede de confiança em emergências.",
         "NSLocationWhenInUseUsageDescription": "ELAS precisa da sua localização pra enviar pras amigas em caso de emergência.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com app fechado.",
+        "NSFaceIDUsageDescription": "ELAS usa Face ID pra proteger o seu Cofre. Só você abre os arquivos guardados.",
         "UIBackgroundModes": [
-          "location",
-          "fetch",
           "location",
           "fetch"
         ],

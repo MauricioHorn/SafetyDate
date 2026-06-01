@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import * as Crypto from 'expo-crypto';
 import Aes from 'react-native-aes-crypto';
 import { supabase } from './supabase';
@@ -37,6 +38,33 @@ export type VaultItem = {
   created_at: string;
   updated_at: string;
 };
+
+/**
+ * Dispara Face ID/Touch ID/Passcode pra autenticar antes de operações sensíveis.
+ * Joga erro se a usuária cancelar ou falhar.
+ */
+async function requireBiometricAuth(reason: string): Promise<void> {
+  const hasHardware = await LocalAuthentication.hasHardwareAsync();
+  if (!hasHardware) {
+    throw new Error('Este aparelho não tem suporte a biometria.');
+  }
+
+  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+  if (!isEnrolled) {
+    throw new Error('Você precisa cadastrar Face ID ou Touch ID nos Ajustes do iPhone.');
+  }
+
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage: reason,
+    cancelLabel: 'Cancelar',
+    fallbackLabel: 'Usar código',
+    disableDeviceFallback: false,
+  });
+
+  if (!result.success) {
+    throw new Error('Autenticação biométrica cancelada.');
+  }
+}
 
 // ============================================================
 // BAIXO NÍVEL — implementar agora (criptografia + secure store)
@@ -87,8 +115,9 @@ export async function hashPassword(password: string, salt: string): Promise<stri
  * Protegida por Face ID via WHEN_PASSCODE_SET_THIS_DEVICE_ONLY.
  */
 export async function storeKeyInKeychain(userId: string, key: string): Promise<void> {
+  // requireAuthentication foi removido — disparamos LocalAuthentication explicitamente nas funções de alto nível.
+  // WHEN_PASSCODE_SET_THIS_DEVICE_ONLY garante que a chave NÃO vai pra iCloud Keychain (privado do device).
   await SecureStore.setItemAsync(`${SECURE_STORE_KEY_PREFIX}${userId}`, key, {
-    requireAuthentication: true,
     keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
   });
   unlockedUserIds.add(userId);
@@ -98,9 +127,9 @@ export async function storeKeyInKeychain(userId: string, key: string): Promise<v
  * Recupera a chave do Keychain. Vai requerer Face ID/Touch ID.
  */
 export async function getKeyFromKeychain(userId: string): Promise<string | null> {
-  return SecureStore.getItemAsync(`${SECURE_STORE_KEY_PREFIX}${userId}`, {
-    requireAuthentication: true,
-  });
+  // requireAuthentication foi removido — autenticação é feita explicitamente via LocalAuthentication
+  // nas funções de alto nível ANTES de chamar getKeyFromKeychain.
+  return SecureStore.getItemAsync(`${SECURE_STORE_KEY_PREFIX}${userId}`);
 }
 
 /**
@@ -163,6 +192,9 @@ export async function createVault(userId: string, password: string): Promise<voi
     throw new Error('A senha precisa ter pelo menos 8 caracteres.');
   }
 
+  // Confirma identidade com Face ID antes de criar o cofre — só ela pode criar.
+  await requireBiometricAuth('Autorize com Face ID pra criar seu cofre');
+
   const passwordSalt = await generateSalt();
   const encryptionSalt = await generateSalt();
 
@@ -203,6 +235,9 @@ export async function unlockVault(userId: string, password: string): Promise<voi
   if (computedHash !== metadata.password_hash) {
     throw new Error('Senha incorreta.');
   }
+
+  // Senha correta — agora exige Face ID antes de liberar acesso ao cofre.
+  await requireBiometricAuth('Autorize com Face ID pra abrir seu cofre');
 
   const encryptionKey = await deriveKey(password, metadata.encryption_salt);
   await storeKeyInKeychain(userId, encryptionKey);

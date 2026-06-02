@@ -471,18 +471,27 @@ export async function getPhotoFromVault(userId: string, itemId: string): Promise
     throw new Error('Foto não encontrada.');
   }
 
-  const { data: blob, error } = await supabase.storage
+  // Cria URL assinada (válida 60s) e usa fetch — Blob.text() do React Native funciona bem assim.
+  const { data: signed, error: signErr } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .download(item.storage_path);
+    .createSignedUrl(item.storage_path, 60);
 
-  if (error || !blob) {
-    throw new Error(`Falha ao baixar foto: ${error?.message}`);
+  if (signErr || !signed?.signedUrl) {
+    throw new Error(`Falha ao gerar URL: ${signErr?.message}`);
   }
 
-  const payloadText = await blob.text();
-  const [ciphertext, iv] = payloadText.split(':');
-  const base64 = await decryptString(ciphertext, iv, key);
+  const response = await fetch(signed.signedUrl);
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar foto: HTTP ${response.status}`);
+  }
 
+  const payloadText = await response.text();
+  const [ciphertext, iv] = payloadText.split(':');
+  if (!ciphertext || !iv) {
+    throw new Error('Foto corrompida (formato inválido).');
+  }
+
+  const base64 = await decryptString(ciphertext, iv, key);
   return `data:image/jpeg;base64,${base64}`;
 }
 

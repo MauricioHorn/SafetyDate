@@ -12,6 +12,7 @@ import {
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '@/lib/supabase';
 import {
   VaultItem,
@@ -19,6 +20,8 @@ import {
   lockVault,
   deleteVaultItem,
   deletePhotoFromVault,
+  deleteDocumentFromVault,
+  addDocumentToVault,
   decryptVaultItem,
   decryptString,
   getKeyFromKeychain,
@@ -27,6 +30,12 @@ import {
 import { colors, spacing } from '@/lib/theme';
 
 type Tab = 'note' | 'photo' | 'video' | 'document' | 'audio';
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 const TABS: { id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'note', label: 'Notas', icon: 'document-text-outline' },
@@ -61,9 +70,25 @@ export default function VaultScreen() {
                 thumbCipher && thumbIv ? await decryptString(thumbCipher, thumbIv, key) : '';
               const filename = await decryptString(fnameCipher, fnameIv, key);
               return { ...item, filename, content: thumbBase64 };
+            } else if (tab === 'document') {
+              const [fnameCipher, fnameIv] = item.encrypted_filename.split(':');
+              const filename = await decryptString(fnameCipher, fnameIv, key);
+              let mimeType = '';
+              if (item.encrypted_metadata) {
+                try {
+                  const [metaCipher, metaIv] = item.encrypted_metadata.split(':');
+                  const metaStr = await decryptString(metaCipher, metaIv, key);
+                  const meta = JSON.parse(metaStr);
+                  mimeType = meta.mimeType || '';
+                } catch {
+                  // metadata opcional
+                }
+              }
+              return { ...item, filename, content: mimeType };
+            } else {
+              const { filename, content } = await decryptVaultItem(item, key);
+              return { ...item, filename, content };
             }
-            const { filename, content } = await decryptVaultItem(item, key);
-            return { ...item, filename, content };
           } catch {
             return { ...item, filename: '[erro]', content: '' };
           }
@@ -110,6 +135,8 @@ export default function VaultScreen() {
           if (!userId) return;
           if (item.item_type === 'photo') {
             await deletePhotoFromVault(userId, item.id);
+          } else if (item.item_type === 'document') {
+            await deleteDocumentFromVault(userId, item.id);
           } else {
             await deleteVaultItem(userId, item.id);
           }
@@ -147,6 +174,39 @@ export default function VaultScreen() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Tente de novo.';
       Alert.alert('Erro ao salvar foto', message);
+      setLoading(false);
+    }
+  };
+
+  const handleAddDocument = async () => {
+    if (!userId) return;
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+      ],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+    const asset = result.assets[0];
+    setLoading(true);
+    try {
+      await addDocumentToVault({
+        userId,
+        fileUri: asset.uri,
+        filename: asset.name,
+        mimeType: asset.mimeType || 'application/octet-stream',
+      });
+      await loadItems(userId, activeTab);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Tente de novo.';
+      Alert.alert('Erro ao salvar documento', message);
       setLoading(false);
     }
   };
@@ -286,13 +346,51 @@ export default function VaultScreen() {
             <Ionicons name="add" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
+      ) : activeTab === 'document' ? (
+        <View style={{ flex: 1 }}>
+          {loading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : items.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="document-outline" size={48} color={colors.textSecondary} />
+              <Text style={styles.emptyText}>Nenhum documento ainda.</Text>
+              <Text style={styles.emptyHint}>Toque no + pra adicionar PDF, DOC ou TXT.</Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: spacing.md, gap: 8 }}>
+              {items.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.docCard}
+                  onPress={() => router.push(`/vault-doc-view?id=${item.id}`)}
+                  onLongPress={() => handleDelete(item)}
+                >
+                  <Ionicons name="document-text-outline" size={28} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: spacing.md }}>
+                    <Text style={styles.docName} numberOfLines={1}>
+                      {item.filename}
+                    </Text>
+                    <Text style={styles.docMeta}>
+                      {item.content || 'documento'} · {formatBytes(item.size_bytes)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={styles.fab} onPress={handleAddDocument}>
+            <Ionicons name="add" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={styles.center}>
           <Ionicons name="construct-outline" size={48} color={colors.textSecondary} />
           <Text style={styles.emptyText}>Em breve.</Text>
-          <Text style={styles.emptyHint}>
-            Vídeos, documentos e áudios virão nas próximas atualizações.
-          </Text>
+          <Text style={styles.emptyHint}>Vídeos e áudios virão nas próximas atualizações.</Text>
         </View>
       )}
     </View>
@@ -358,4 +456,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  docCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  docName: { fontSize: 15, color: colors.text, fontWeight: '600', marginBottom: 2 },
+  docMeta: { fontSize: 12, color: colors.textSecondary },
 });

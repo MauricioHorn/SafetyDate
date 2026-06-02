@@ -7,17 +7,22 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import {
   VaultItem,
   listVaultItems,
   lockVault,
   deleteVaultItem,
+  deletePhotoFromVault,
   decryptVaultItem,
+  decryptString,
   getKeyFromKeychain,
+  addPhotoToVault,
 } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
 
@@ -49,10 +54,18 @@ export default function VaultScreen() {
       const decrypted = await Promise.all(
         rawItems.map(async (item) => {
           try {
+            if (tab === 'photo') {
+              const [thumbCipher, thumbIv] = (item.encrypted_metadata || '').split(':');
+              const [fnameCipher, fnameIv] = item.encrypted_filename.split(':');
+              const thumbBase64 =
+                thumbCipher && thumbIv ? await decryptString(thumbCipher, thumbIv, key) : '';
+              const filename = await decryptString(fnameCipher, fnameIv, key);
+              return { ...item, filename, content: thumbBase64 };
+            }
             const { filename, content } = await decryptVaultItem(item, key);
             return { ...item, filename, content };
           } catch {
-            return { ...item, filename: '[erro ao descriptografar]', content: '' };
+            return { ...item, filename: '[erro]', content: '' };
           }
         })
       );
@@ -95,11 +108,47 @@ export default function VaultScreen() {
         style: 'destructive',
         onPress: async () => {
           if (!userId) return;
-          await deleteVaultItem(userId, item.id);
+          if (item.item_type === 'photo') {
+            await deletePhotoFromVault(userId, item.id);
+          } else {
+            await deleteVaultItem(userId, item.id);
+          }
           await loadItems(userId, activeTab);
         },
       },
     ]);
+  };
+
+  const handleAddPhoto = async () => {
+    if (!userId) return;
+
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert(
+        'Sem permissão',
+        'O ELAS precisa de permissão pra acessar suas fotos. Vá em Ajustes pra permitir.'
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      allowsMultipleSelection: false,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+    const asset = result.assets[0];
+    setLoading(true);
+    try {
+      await addPhotoToVault({ userId, imageUri: asset.uri });
+      await loadItems(userId, activeTab);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Tente de novo.';
+      Alert.alert('Erro ao salvar foto', message);
+      setLoading(false);
+    }
   };
 
   return (
@@ -180,12 +229,69 @@ export default function VaultScreen() {
             <Ionicons name="add" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
+      ) : activeTab === 'photo' ? (
+        <View style={{ flex: 1 }}>
+          {loading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : items.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="image-outline" size={48} color={colors.textSecondary} />
+              <Text style={styles.emptyText}>Nenhuma foto ainda.</Text>
+              <Text style={styles.emptyHint}>Toque no + pra adicionar.</Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: 4 }}>
+              <View style={styles.photoGrid}>
+                {items.map((item) => {
+                  const thumbDataUri = item.content
+                    ? `data:image/jpeg;base64,${item.content}`
+                    : null;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.photoTile}
+                      onPress={() => router.push(`/vault-photo-view?id=${item.id}`)}
+                      onLongPress={() => handleDelete(item)}
+                    >
+                      {thumbDataUri ? (
+                        <Image source={{ uri: thumbDataUri }} style={styles.photoThumb} />
+                      ) : (
+                        <View
+                          style={[
+                            styles.photoThumb,
+                            {
+                              backgroundColor: colors.surface,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="alert-circle-outline"
+                            size={20}
+                            color={colors.textSecondary}
+                          />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={styles.fab} onPress={handleAddPhoto}>
+            <Ionicons name="add" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={styles.center}>
           <Ionicons name="construct-outline" size={48} color={colors.textSecondary} />
           <Text style={styles.emptyText}>Em breve.</Text>
           <Text style={styles.emptyHint}>
-            Fotos, vídeos, documentos e áudios virão nas próximas atualizações.
+            Vídeos, documentos e áudios virão nas próximas atualizações.
           </Text>
         </View>
       )}
@@ -223,6 +329,24 @@ const styles = StyleSheet.create({
   noteTitle: { fontSize: 15, color: colors.text, fontWeight: '600', marginBottom: 4 },
   notePreview: { fontSize: 13, color: colors.textSecondary, marginBottom: 8 },
   noteDate: { fontSize: 11, color: colors.textSecondary },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  photoTile: {
+    width: '32%',
+    aspectRatio: 1,
+    marginBottom: 4,
+    marginRight: '1%',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+  },
+  photoThumb: {
+    width: '100%',
+    height: '100%',
+  },
   fab: {
     position: 'absolute',
     bottom: 24,

@@ -1,6 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Crypto from 'expo-crypto';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 import Aes from 'react-native-aes-crypto';
 import { supabase } from './supabase';
 
@@ -11,6 +13,11 @@ const unlockedUserIds = new Set<string>();
 const SECURE_STORE_KEY_PREFIX = 'elas_vault_';
 const PBKDF2_ITERATIONS = 100000;
 const KEY_LENGTH_BYTES = 32; // AES-256
+const MAX_PHOTO_SIZE_BYTES = 15 * 1024 * 1024; // 15MB
+const PHOTO_COMPRESSION_QUALITY = 0.85;
+const THUMBNAIL_SIZE = 200;
+const THUMBNAIL_QUALITY = 0.7;
+const STORAGE_BUCKET = 'vault-files';
 
 export type VaultItemType = 'photo' | 'video' | 'note' | 'document' | 'audio';
 
@@ -354,6 +361,156 @@ export async function addVaultItem(params: {
   }
 
   return data as VaultItem;
+}
+
+export async function addPhotoToVault(params: {
+  userId: string;
+  imageUri: string;
+}): Promise<VaultItem> {
+  const key = await getKeyFromKeychain(params.userId);
+  if (!key) {
+    throw new Error('Cofre trancado. Destranque antes.');
+  }
+
+  let base64 = await FileSystem.readAsStringAsync(params.imageUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  let workingUri = params.imageUri;
+  const sizeBytes = base64.length * 0.75;
+  if (sizeBytes > MAX_PHOTO_SIZE_BYTES) {
+    const result = await ImageManipulator.manipulateAsync(
+      params.imageUri,
+      [],
+      { compress: PHOTO_COMPRESSION_QUALITY, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    );
+    if (!result.base64) {
+      throw new Error('Falha ao comprimir foto.');
+    }
+    base64 = result.base64;
+    workingUri = result.uri;
+
+    if (base64.length * 0.75 > MAX_PHOTO_SIZE_BYTES) {
+      throw new Error('Foto muito grande mesmo após compressão. Tente uma menor.');
+    }
+  }
+
+  const thumb = await ImageManipulator.manipulateAsync(
+    workingUri,
+    [{ resize: { width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE } }],
+    { compress: THUMBNAIL_QUALITY, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+  );
+  if (!thumb.base64) {
+    throw new Error('Falha ao criar thumbnail.');
+  }
+
+  const encOriginal = await encryptString(base64, key);
+  const encThumb = await encryptString(thumb.base64, key);
+  const encFilename = await encryptString(`foto_${new Date().toISOString().slice(0, 19)}.jpg`, key);
+
+  const itemId = Crypto.randomUUID();
+  const originalPath = `${params.userId}/${itemId}.enc`;
+  const thumbPath = `${params.userId}/${itemId}_thumb.enc`;
+
+  const originalPayload = `${encOriginal.ciphertext}:${encOriginal.iv}`;
+  const thumbPayload = `${encThumb.ciphertext}:${encThumb.iv}`;
+
+  const { error: upErr1 } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(originalPath, originalPayload, { contentType: 'text/plain', upsert: false });
+  if (upErr1) {
+    throw new Error(`Falha ao subir foto: ${upErr1.message}`);
+  }
+
+  const { error: upErr2 } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(thumbPath, thumbPayload, { contentType: 'text/plain', upsert: false });
+  if (upErr2) {
+    await supabase.storage.from(STORAGE_BUCKET).remove([originalPath]).catch(() => {});
+    throw new Error(`Falha ao subir thumbnail: ${upErr2.message}`);
+  }
+
+  const totalSizeBytes = originalPayload.length / 2 + thumbPayload.length / 2;
+  const { data, error } = await supabase
+    .from('vault_items')
+    .insert({
+      id: itemId,
+      user_id: params.userId,
+      item_type: 'photo',
+      encrypted_filename: `${encFilename.ciphertext}:${encFilename.iv}`,
+      encrypted_metadata: `${encThumb.ciphertext}:${encThumb.iv}`,
+      storage_path: originalPath,
+      size_bytes: totalSizeBytes,
+      iv: encOriginal.iv,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    await supabase.storage.from(STORAGE_BUCKET).remove([originalPath, thumbPath]).catch(() => {});
+    throw new Error(`Falha ao salvar item: ${error?.message}`);
+  }
+
+  return data as VaultItem;
+}
+
+export async function getPhotoFromVault(userId: string, itemId: string): Promise<string> {
+  const key = await getKeyFromKeychain(userId);
+  if (!key) {
+    throw new Error('Cofre trancado.');
+  }
+
+  const { data: item } = await supabase
+    .from('vault_items')
+    .select('storage_path')
+    .eq('user_id', userId)
+    .eq('id', itemId)
+    .maybeSingle();
+
+  if (!item?.storage_path) {
+    throw new Error('Foto não encontrada.');
+  }
+
+  const { data: blob, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .download(item.storage_path);
+
+  if (error || !blob) {
+    throw new Error(`Falha ao baixar foto: ${error?.message}`);
+  }
+
+  const payloadText = await blob.text();
+  const [ciphertext, iv] = payloadText.split(':');
+  const base64 = await decryptString(ciphertext, iv, key);
+
+  return `data:image/jpeg;base64,${base64}`;
+}
+
+export async function deletePhotoFromVault(userId: string, itemId: string): Promise<void> {
+  const { data: item } = await supabase
+    .from('vault_items')
+    .select('storage_path')
+    .eq('user_id', userId)
+    .eq('id', itemId)
+    .maybeSingle();
+
+  if (item?.storage_path) {
+    const thumbPath = item.storage_path.replace('.enc', '_thumb.enc');
+    await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([item.storage_path, thumbPath])
+      .catch(() => {});
+  }
+
+  const { error } = await supabase
+    .from('vault_items')
+    .delete()
+    .eq('user_id', userId)
+    .eq('id', itemId);
+
+  if (error) {
+    throw new Error(`Erro ao apagar: ${error.message}`);
+  }
 }
 
 /**

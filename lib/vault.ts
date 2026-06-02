@@ -270,33 +270,141 @@ export async function isVaultUnlocked(userId: string): Promise<boolean> {
 }
 
 /**
- * Lista itens do cofre, descriptografando metadados (nome, etc).
+ * Lista itens do cofre (criptografados; use decryptVaultItem para ler conteúdo).
  */
 export async function listVaultItems(
   userId: string,
   type?: VaultItemType
 ): Promise<VaultItem[]> {
-  void userId;
-  void type;
-  throw new Error('listVaultItems: not implemented yet (Fase 4)');
+  const key = await getKeyFromKeychain(userId);
+  if (!key) {
+    throw new Error('Cofre trancado.');
+  }
+
+  let query = supabase
+    .from('vault_items')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (type) {
+    query = query.eq('item_type', type);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Erro ao listar: ${error.message}`);
+  }
+
+  return (data || []) as VaultItem[];
 }
 
 /**
  * Adiciona um item ao cofre (criptografa + sobe pro Supabase + cria linha).
- * Params completos na Fase 4.
  */
-export async function addVaultItem(_params: unknown): Promise<VaultItem> {
-  void _params;
-  throw new Error('addVaultItem: not implemented yet (Fase 4)');
+export async function addVaultItem(params: {
+  userId: string;
+  type: VaultItemType;
+  filename: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}): Promise<VaultItem> {
+  const key = await getKeyFromKeychain(params.userId);
+  if (!key) {
+    throw new Error('Cofre trancado. Destranque antes de adicionar itens.');
+  }
+
+  const encFilename = await encryptString(params.filename, key);
+
+  const payload = JSON.stringify({
+    content: params.content,
+    metadata: params.metadata || {},
+  });
+  const encPayload = await encryptString(payload, key);
+
+  const sizeBytes = encPayload.ciphertext.length / 2;
+
+  const { data, error } = await supabase
+    .from('vault_items')
+    .insert({
+      user_id: params.userId,
+      item_type: params.type,
+      encrypted_filename: `${encFilename.ciphertext}:${encFilename.iv}`,
+      encrypted_metadata: `${encPayload.ciphertext}:${encPayload.iv}`,
+      storage_path: null,
+      size_bytes: sizeBytes,
+      iv: encPayload.iv,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Erro ao salvar item: ${error?.message}`);
+  }
+
+  const { error: rpcError } = await supabase.rpc('vault_increment_bytes_used', {
+    p_user_id: params.userId,
+    p_delta: sizeBytes,
+  });
+  if (rpcError) {
+    await supabase
+      .from('vault_metadata')
+      .update({ bytes_used: sizeBytes })
+      .eq('user_id', params.userId);
+  }
+
+  return data as VaultItem;
 }
 
 /**
  * Apaga um item do cofre (storage + linha).
  */
 export async function deleteVaultItem(userId: string, itemId: string): Promise<void> {
-  void userId;
-  void itemId;
-  throw new Error('deleteVaultItem: not implemented yet (Fase 4)');
+  const { data: item } = await supabase
+    .from('vault_items')
+    .select('size_bytes, storage_path')
+    .eq('user_id', userId)
+    .eq('id', itemId)
+    .maybeSingle();
+
+  void item;
+
+  const { error } = await supabase
+    .from('vault_items')
+    .delete()
+    .eq('user_id', userId)
+    .eq('id', itemId);
+
+  if (error) {
+    throw new Error(`Erro ao apagar: ${error.message}`);
+  }
+}
+
+/**
+ * Descriptografa filename + conteúdo/metadata de um VaultItem.
+ */
+export async function decryptVaultItem(
+  item: VaultItem,
+  key: string
+): Promise<{
+  filename: string;
+  content: string;
+  metadata: Record<string, unknown>;
+}> {
+  const [filenameCipher, filenameIv] = item.encrypted_filename.split(':');
+  const filename = await decryptString(filenameCipher, filenameIv, key);
+
+  let content = '';
+  let metadata: Record<string, unknown> = {};
+  if (item.encrypted_metadata) {
+    const [payloadCipher, payloadIv] = item.encrypted_metadata.split(':');
+    const payloadStr = await decryptString(payloadCipher, payloadIv, key);
+    const payload = JSON.parse(payloadStr) as { content?: string; metadata?: Record<string, unknown> };
+    content = payload.content || '';
+    metadata = payload.metadata || {};
+  }
+
+  return { filename, content, metadata };
 }
 
 /**

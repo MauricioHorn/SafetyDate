@@ -330,7 +330,7 @@ export async function addVaultItem(params: {
   });
   const encPayload = await encryptString(payload, key);
 
-  const sizeBytes = encPayload.ciphertext.length / 2;
+  const sizeBytes = Math.floor(encPayload.ciphertext.length / 2);
 
   const { data, error } = await supabase
     .from('vault_items')
@@ -431,7 +431,7 @@ export async function addPhotoToVault(params: {
     throw new Error(`Falha ao subir thumbnail: ${upErr2.message}`);
   }
 
-  const totalSizeBytes = originalPayload.length / 2 + thumbPayload.length / 2;
+  const totalSizeBytes = Math.floor(originalPayload.length / 2) + Math.floor(thumbPayload.length / 2);
   const { data, error } = await supabase
     .from('vault_items')
     .insert({
@@ -560,7 +560,7 @@ export async function addDocumentToVault(params: {
     throw new Error(`Falha ao subir documento: ${upErr.message}`);
   }
 
-  const totalSizeBytes = payload.length / 2;
+  const totalSizeBytes = Math.floor(payload.length / 2);
   const { data, error } = await supabase
     .from('vault_items')
     .insert({

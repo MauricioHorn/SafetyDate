@@ -734,6 +734,66 @@ export async function decryptVaultItem(
  * Usuária precisa criar de novo com createVault depois.
  */
 export async function resetVault(userId: string): Promise<void> {
-  void userId;
-  throw new Error('resetVault: not implemented yet (Fase 5)');
+  // 1. Lista TODOS os arquivos do user no Storage (recursivamente, paginando se precisar)
+  // O método list retorna até 100 por chamada — pra MVP, 100 cobre 1GB. Se passar disso, loop.
+  let allFiles: string[] = [];
+  let offset = 0;
+  const PAGE = 100;
+
+  while (true) {
+    const { data: files, error: listErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .list(userId, { limit: PAGE, offset });
+
+    if (listErr) {
+      throw new Error(`Falha ao listar arquivos do Cofre: ${listErr.message}`);
+    }
+
+    if (!files || files.length === 0) break;
+
+    const paths = files.map((f) => `${userId}/${f.name}`);
+    allFiles = allFiles.concat(paths);
+
+    if (files.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  // 2. Apaga os arquivos do Storage (em lote)
+  if (allFiles.length > 0) {
+    const { error: removeErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove(allFiles);
+    if (removeErr) {
+      // Storage falhou. Não continua pra não deixar inconsistência (linhas no banco apontando pra arquivos que ainda existem).
+      throw new Error(`Falha ao apagar arquivos: ${removeErr.message}`);
+    }
+  }
+
+  // 3. Apaga todas as linhas em vault_items
+  const { error: itemsErr } = await supabase
+    .from('vault_items')
+    .delete()
+    .eq('user_id', userId);
+  if (itemsErr) {
+    throw new Error(`Falha ao apagar itens: ${itemsErr.message}`);
+  }
+
+  // 4. Apaga a linha em vault_metadata
+  const { error: metaErr } = await supabase
+    .from('vault_metadata')
+    .delete()
+    .eq('user_id', userId);
+  if (metaErr) {
+    throw new Error(`Falha ao apagar metadados: ${metaErr.message}`);
+  }
+
+  // 5. Remove chave do Keychain (se ainda estiver lá)
+  try {
+    await removeKeyFromKeychain(userId);
+  } catch {
+    // ignora — se não tinha chave, ok.
+  }
+
+  // 6. Limpa flag em memória
+  unlockedUserIds.delete(userId);
 }

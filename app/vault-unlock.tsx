@@ -7,6 +7,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -80,6 +81,15 @@ export default function VaultUnlockScreen() {
           />
 
           <Button label="Destrancar" onPress={handleUnlock} loading={loading} />
+
+          <TouchableOpacity
+            onPress={() => router.push('/vault-reset')}
+            style={{ marginTop: 16, padding: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
+              Esqueci minha senha
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

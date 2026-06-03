@@ -32,7 +32,7 @@ import {
 } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
 
-type Tab = 'note' | 'photo' | 'video' | 'document' | 'audio';
+type Tab = 'note' | 'photo' | 'document' | 'audio';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,7 +43,6 @@ function formatBytes(bytes: number): string {
 const TABS: { id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'note', label: 'Notas', icon: 'document-text-outline' },
   { id: 'photo', label: 'Fotos', icon: 'image-outline' },
-  { id: 'video', label: 'Vídeos', icon: 'videocam-outline' },
   { id: 'document', label: 'Docs', icon: 'document-outline' },
   { id: 'audio', label: 'Áudios', icon: 'mic-outline' },
 ];
@@ -499,13 +498,7 @@ export default function VaultScreen() {
             <Ionicons name="add" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
-      ) : (
-        <View style={styles.center}>
-          <Ionicons name="construct-outline" size={48} color={colors.textSecondary} />
-          <Text style={styles.emptyText}>Em breve.</Text>
-          <Text style={styles.emptyHint}>Vídeos virão numa próxima atualização.</Text>
-        </View>
-      )}
+      ) : null}
     </View>
   );
 }

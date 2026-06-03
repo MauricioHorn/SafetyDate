@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { supabase } from '@/lib/supabase';
 import { getAudioFromVault, deleteAudioFromVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
@@ -22,6 +22,16 @@ export default function VaultAudioViewScreen() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [audioInfo, setAudioInfo] = useState<{ fileUri: string; filename: string; mimeType: string } | null>(null);
+
+  useEffect(() => {
+    // Configura audio session pra tocar mesmo em modo silencioso (igual Spotify, podcasts).
+    setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: false,
+    }).catch(() => {
+      // se falhar, segue — provavelmente continua tocando no modo normal mesmo assim
+    });
+  }, []);
 
   // Cria o player só quando o áudio estiver descriptografado
   const player = useAudioPlayer(audioInfo?.fileUri || null);
@@ -55,14 +65,30 @@ export default function VaultAudioViewScreen() {
     }
   }, [audioInfo, player, status?.isLoaded]);
 
+  // Detecta quando o áudio termina e reseta pra começo (UX igual WhatsApp)
+  useEffect(() => {
+    if (status?.didJustFinish) {
+      player.seekTo(0);
+      player.pause();
+    }
+  }, [status?.didJustFinish, player]);
+
   const handlePlayPause = useCallback(() => {
-    if (!player) return;
-    if (status?.playing) {
+    if (!player || !status) return;
+
+    // Se o áudio terminou e a usuária toca de novo, reinicia do começo.
+    if (status.currentTime >= (status.duration || 0) - 0.1 && (status.duration || 0) > 0) {
+      player.seekTo(0);
+      player.play();
+      return;
+    }
+
+    if (status.playing) {
       player.pause();
     } else {
       player.play();
     }
-  }, [player, status?.playing]);
+  }, [player, status]);
 
   const handleSkip = useCallback((seconds: number) => {
     if (!player || !status) return;

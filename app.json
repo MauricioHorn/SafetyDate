@@ -24,6 +24,8 @@
         "NSPhotoLibraryUsageDescription": "ELAS precisa acessar suas fotos pra você salvar no Cofre. As fotos selecionadas são criptografadas — nem o ELAS pode ver.",
         "NSPhotoLibraryAddUsageDescription": "ELAS pode salvar fotos do Cofre de volta na sua galeria se você pedir.",
         "NSDocumentsFolderUsageDescription": "ELAS precisa acessar seus documentos pra você salvar no Cofre. Os arquivos são criptografados — nem o ELAS pode ver.",
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true,
         "UIBackgroundModes": [
           "location",
           "fetch"

@@ -225,6 +225,7 @@ export default function VaultScreen() {
         options={{
           title: 'Cofre',
           headerShown: true,
+          headerBackTitle: 'Voltar',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           headerRight: () => (

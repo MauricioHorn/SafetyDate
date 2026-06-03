@@ -127,6 +127,7 @@ export default function VaultNoteEditScreen() {
         options={{
           title: editingId ? 'Editar nota' : 'Nova nota',
           headerShown: true,
+          headerBackTitle: 'Voltar',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/lib/supabase';
 import { getDocumentFromVault, deleteDocumentFromVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
@@ -16,7 +15,6 @@ export default function VaultDocViewScreen() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [docInfo, setDocInfo] = useState<{ fileUri: string; filename: string; mimeType: string } | null>(null);
-  const [savingToFiles, setSavingToFiles] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -50,40 +48,6 @@ export default function VaultDocViewScreen() {
       mimeType: docInfo.mimeType,
       dialogTitle: docInfo.filename,
     });
-  };
-
-  const handleSaveToFiles = async () => {
-    if (!docInfo) return;
-    setSavingToFiles(true);
-    try {
-      // Copia o arquivo do cache temp pra Documents do app (que aparece em Files)
-      const documentsDir = FileSystem.documentDirectory;
-      if (!documentsDir) {
-        throw new Error('Pasta de documentos não disponível.');
-      }
-      const targetPath = `${documentsDir}${docInfo.filename}`;
-
-      // Apaga se já existir (pra evitar erro de "já existe")
-      const info = await FileSystem.getInfoAsync(targetPath);
-      if (info.exists) {
-        await FileSystem.deleteAsync(targetPath, { idempotent: true });
-      }
-
-      await FileSystem.copyAsync({
-        from: docInfo.fileUri,
-        to: targetPath,
-      });
-
-      Alert.alert(
-        'Documento salvo',
-        'O arquivo foi salvo na pasta do ELAS dentro do app Arquivos do iPhone.'
-      );
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Não foi possível salvar.';
-      Alert.alert('Erro ao salvar', message);
-    } finally {
-      setSavingToFiles(false);
-    }
   };
 
   const handleDelete = () => {
@@ -127,24 +91,9 @@ export default function VaultDocViewScreen() {
           <Text style={styles.actionTextPrimary}>Abrir documento</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnSecondary]}
-          onPress={handleSaveToFiles}
-          disabled={savingToFiles}
-        >
-          {savingToFiles ? (
-            <ActivityIndicator color={colors.text} size="small" />
-          ) : (
-            <Ionicons name="download-outline" size={20} color={colors.text} />
-          )}
-          <Text style={styles.actionTextSecondary}>
-            {savingToFiles ? 'Salvando...' : 'Salvar no iPhone'}
-          </Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-          <Text style={styles.actionTextDanger}>Apagar</Text>
+          <Ionicons name="trash-outline" size={20} color="#fff" />
+          <Text style={styles.actionTextPrimary}>Apagar</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -158,11 +107,8 @@ const styles = StyleSheet.create({
   docPreview: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.md },
   filename: { fontSize: 16, color: colors.text, fontWeight: '500', textAlign: 'center' },
   hint: { fontSize: 13, color: colors.textSecondary, textAlign: 'center' },
-  actions: { padding: spacing.md, gap: spacing.md },
+  actions: { padding: spacing.md, paddingBottom: spacing.xl + spacing.md, gap: 12 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: spacing.md, borderRadius: 12, backgroundColor: colors.primary },
-  actionBtnSecondary: { backgroundColor: colors.surface },
-  deleteBtn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#EF4444' },
-  actionTextSecondary: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  deleteBtn: { backgroundColor: '#EF4444' },
   actionTextPrimary: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  actionTextDanger: { color: '#EF4444', fontSize: 14, fontWeight: '500' },
 });

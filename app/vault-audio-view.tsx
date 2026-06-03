@@ -170,8 +170,8 @@ export default function VaultAudioViewScreen() {
 
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-          <Text style={styles.actionTextDanger}>Apagar áudio</Text>
+          <Ionicons name="trash-outline" size={20} color="#fff" />
+          <Text style={styles.actionTextPrimary}>Apagar áudio</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -194,8 +194,8 @@ const styles = StyleSheet.create({
   skipBtn: { alignItems: 'center', gap: 2, padding: spacing.sm },
   skipLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: '500' },
   playBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  actions: { padding: spacing.md },
+  actions: { padding: spacing.md, paddingBottom: spacing.xl + spacing.md },
   actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: spacing.md, borderRadius: 12 },
-  deleteBtn: { borderWidth: 1, borderColor: '#EF4444' },
-  actionTextDanger: { color: '#EF4444', fontSize: 14, fontWeight: '500' },
+  deleteBtn: { backgroundColor: '#EF4444' },
+  actionTextPrimary: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/lib/supabase';
 import {
   VaultItem,
@@ -29,6 +31,8 @@ import {
   getKeyFromKeychain,
   addPhotoToVault,
   getVaultUsage,
+  getPhotoFromVault,
+  getDocumentFromVault,
 } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
 
@@ -54,6 +58,9 @@ export default function VaultScreen() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [usage, setUsage] = useState<{ used: number; limit: number; percent: number } | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchActioning, setBatchActioning] = useState(false);
 
   const loadItems = useCallback(async (uid: string, tab: Tab) => {
     setLoading(true);
@@ -265,20 +272,172 @@ export default function VaultScreen() {
     }
   };
 
+  const enterSelectionMode = (firstId: string) => {
+    setSelectionMode(true);
+    setSelectedIds(new Set([firstId]));
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      if (next.size === 0) {
+        setSelectionMode(false);
+      }
+      return next;
+    });
+  };
+
+  const cancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  useEffect(() => {
+    cancelSelection();
+  }, [activeTab]);
+
+  const handleBatchDelete = () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+
+    Alert.alert(
+      `Apagar ${count} ${count === 1 ? 'item' : 'itens'}?`,
+      'Essa ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: async () => {
+            if (!userId) return;
+            setBatchActioning(true);
+            try {
+              const idsToDelete = Array.from(selectedIds);
+              const tasks = idsToDelete.map(async (id) => {
+                const item = items.find((i) => i.id === id);
+                if (!item) return;
+                if (item.item_type === 'photo') {
+                  await deletePhotoFromVault(userId, id);
+                } else if (item.item_type === 'document') {
+                  await deleteDocumentFromVault(userId, id);
+                } else if (item.item_type === 'audio') {
+                  await deleteAudioFromVault(userId, id);
+                } else {
+                  await deleteVaultItem(userId, id);
+                }
+              });
+              await Promise.all(tasks);
+              cancelSelection();
+              await loadItems(userId, activeTab);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'Falha ao apagar.';
+              Alert.alert('Erro', message);
+            } finally {
+              setBatchActioning(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleBatchShare = async () => {
+    if (!userId || selectedIds.size === 0) return;
+    if (activeTab !== 'photo' && activeTab !== 'document') {
+      Alert.alert('Em breve', 'Compartilhar em massa só funciona pra fotos e documentos por enquanto.');
+      return;
+    }
+
+    setBatchActioning(true);
+    try {
+      const idsToShare = Array.from(selectedIds);
+      const filePaths: string[] = [];
+      for (const id of idsToShare) {
+        if (activeTab === 'photo') {
+          const dataUri = await getPhotoFromVault(userId, id);
+          const base64 = dataUri.replace(/^data:image\/jpeg;base64,/, '');
+          const path = `${FileSystem.cacheDirectory}share_${id}.jpg`;
+          await FileSystem.writeAsStringAsync(path, base64, { encoding: FileSystem.EncodingType.Base64 });
+          filePaths.push(path);
+        } else if (activeTab === 'document') {
+          const info = await getDocumentFromVault(userId, id);
+          filePaths.push(info.fileUri);
+        }
+      }
+
+      if (filePaths.length === 1) {
+        await Sharing.shareAsync(filePaths[0]);
+      } else {
+        Alert.alert(
+          'Compartilhar múltiplos',
+          `Vou abrir um por um (${filePaths.length} arquivos). Confirma cada um.`,
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'OK',
+              onPress: async () => {
+                for (const path of filePaths) {
+                  try {
+                    await Sharing.shareAsync(path);
+                  } catch {
+                    // se cancelar um, segue pro próximo
+                  }
+                }
+                cancelSelection();
+              },
+            },
+          ]
+        );
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Falha ao compartilhar.';
+      Alert.alert('Erro', message);
+    } finally {
+      setBatchActioning(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Cofre',
+          title: selectionMode
+            ? `${selectedIds.size} selecionado${selectedIds.size === 1 ? '' : 's'}`
+            : 'Cofre',
           headerShown: true,
           headerBackTitle: 'Voltar',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
-          headerRight: () => (
-            <TouchableOpacity onPress={handleLock} style={{ marginRight: 12 }}>
-              <Ionicons name="lock-closed" size={22} color={colors.textSecondary} />
-            </TouchableOpacity>
-          ),
+          headerLeft: selectionMode
+            ? () => (
+                <TouchableOpacity onPress={cancelSelection} style={{ marginLeft: 12 }}>
+                  <Text style={{ color: colors.primary, fontSize: 16 }}>Cancelar</Text>
+                </TouchableOpacity>
+              )
+            : undefined,
+          headerRight: selectionMode
+            ? () => (
+                <View style={{ flexDirection: 'row', gap: 16, marginRight: 12 }}>
+                  {(activeTab === 'photo' || activeTab === 'document') && (
+                    <TouchableOpacity onPress={handleBatchShare} disabled={batchActioning}>
+                      <Ionicons name="share-outline" size={22} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={handleBatchDelete} disabled={batchActioning}>
+                    <Ionicons name="trash-outline" size={22} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              )
+            : () => (
+                <TouchableOpacity onPress={handleLock} style={{ marginRight: 12 }}>
+                  <Ionicons name="lock-closed" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ),
         }}
       />
 
@@ -341,10 +500,25 @@ export default function VaultScreen() {
               {items.map((item) => (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.noteCard}
-                  onPress={() => router.push(`/vault-note-edit?id=${item.id}`)}
-                  onLongPress={() => handleDelete(item)}
+                  style={[styles.noteCard, selectedIds.has(item.id) && styles.itemSelected]}
+                  onPress={() => {
+                    if (selectionMode) {
+                      toggleSelection(item.id);
+                    } else {
+                      router.push(`/vault-note-edit?id=${item.id}`);
+                    }
+                  }}
+                  onLongPress={() => enterSelectionMode(item.id)}
                 >
+                  {selectionMode && (
+                    <View style={styles.selectionCheck}>
+                      <Ionicons
+                        name={selectedIds.has(item.id) ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={selectedIds.has(item.id) ? colors.primary : colors.textSecondary}
+                      />
+                    </View>
+                  )}
                   <Text style={styles.noteTitle} numberOfLines={1}>
                     {item.filename}
                   </Text>
@@ -385,9 +559,15 @@ export default function VaultScreen() {
                   return (
                     <TouchableOpacity
                       key={item.id}
-                      style={styles.photoTile}
-                      onPress={() => router.push(`/vault-photo-view?id=${item.id}`)}
-                      onLongPress={() => handleDelete(item)}
+                      style={[styles.photoTile, selectedIds.has(item.id) && styles.itemSelected]}
+                      onPress={() => {
+                        if (selectionMode) {
+                          toggleSelection(item.id);
+                        } else {
+                          router.push(`/vault-photo-view?id=${item.id}`);
+                        }
+                      }}
+                      onLongPress={() => enterSelectionMode(item.id)}
                     >
                       {thumbDataUri ? (
                         <Image source={{ uri: thumbDataUri }} style={styles.photoThumb} />
@@ -406,6 +586,15 @@ export default function VaultScreen() {
                             name="alert-circle-outline"
                             size={20}
                             color={colors.textSecondary}
+                          />
+                        </View>
+                      )}
+                      {selectionMode && (
+                        <View style={styles.photoSelectionCheck}>
+                          <Ionicons
+                            name={selectedIds.has(item.id) ? 'checkmark-circle' : 'ellipse-outline'}
+                            size={26}
+                            color={selectedIds.has(item.id) ? colors.primary : '#fff'}
                           />
                         </View>
                       )}
@@ -437,11 +626,25 @@ export default function VaultScreen() {
               {items.map((item) => (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.docCard}
-                  onPress={() => router.push(`/vault-doc-view?id=${item.id}`)}
-                  onLongPress={() => handleDelete(item)}
+                  style={[styles.docCard, selectedIds.has(item.id) && styles.itemSelected]}
+                  onPress={() => {
+                    if (selectionMode) {
+                      toggleSelection(item.id);
+                    } else {
+                      router.push(`/vault-doc-view?id=${item.id}`);
+                    }
+                  }}
+                  onLongPress={() => enterSelectionMode(item.id)}
                 >
-                  <Ionicons name="document-text-outline" size={28} color={colors.primary} />
+                  {selectionMode ? (
+                    <Ionicons
+                      name={selectedIds.has(item.id) ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={26}
+                      color={selectedIds.has(item.id) ? colors.primary : colors.textSecondary}
+                    />
+                  ) : (
+                    <Ionicons name="document-text-outline" size={28} color={colors.primary} />
+                  )}
                   <View style={{ flex: 1, marginLeft: spacing.md }}>
                     <Text style={styles.docName} numberOfLines={1}>
                       {item.filename}
@@ -450,7 +653,9 @@ export default function VaultScreen() {
                       {item.content || 'documento'} · {formatBytes(item.size_bytes)}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  {!selectionMode && (
+                    <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -477,18 +682,34 @@ export default function VaultScreen() {
               {items.map((item) => (
                 <TouchableOpacity
                   key={item.id}
-                  style={styles.docCard}
-                  onPress={() => router.push(`/vault-audio-view?id=${item.id}`)}
-                  onLongPress={() => handleDelete(item)}
+                  style={[styles.docCard, selectedIds.has(item.id) && styles.itemSelected]}
+                  onPress={() => {
+                    if (selectionMode) {
+                      toggleSelection(item.id);
+                    } else {
+                      router.push(`/vault-audio-view?id=${item.id}`);
+                    }
+                  }}
+                  onLongPress={() => enterSelectionMode(item.id)}
                 >
-                  <Ionicons name="musical-notes-outline" size={28} color={colors.primary} />
+                  {selectionMode ? (
+                    <Ionicons
+                      name={selectedIds.has(item.id) ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={26}
+                      color={selectedIds.has(item.id) ? colors.primary : colors.textSecondary}
+                    />
+                  ) : (
+                    <Ionicons name="musical-notes-outline" size={28} color={colors.primary} />
+                  )}
                   <View style={{ flex: 1, marginLeft: spacing.md }}>
                     <Text style={styles.docName} numberOfLines={1}>
                       {item.filename}
                     </Text>
                     <Text style={styles.docMeta}>{formatBytes(item.size_bytes)}</Text>
                   </View>
-                  <Ionicons name="play-circle-outline" size={28} color={colors.primary} />
+                  {!selectionMode && (
+                    <Ionicons name="play-circle-outline" size={28} color={colors.primary} />
+                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -586,4 +807,14 @@ const styles = StyleSheet.create({
   },
   docName: { fontSize: 15, color: colors.text, fontWeight: '600', marginBottom: 2 },
   docMeta: { fontSize: 12, color: colors.textSecondary },
+  itemSelected: { borderColor: colors.primary, borderWidth: 2 },
+  selectionCheck: { position: 'absolute', top: 8, right: 8 },
+  photoSelectionCheck: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 13,
+    padding: 2,
+  },
 });

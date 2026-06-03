@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import {
   addVaultItem,
@@ -161,7 +162,8 @@ export default function VaultNoteEditScreen() {
 
         {editingId && (
           <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-            <Text style={styles.deleteBtnText}>Apagar nota</Text>
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+            <Text style={styles.saveBtnText}>Apagar nota</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -195,11 +197,12 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: colors.primary, padding: spacing.md, borderRadius: 12, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     padding: spacing.md,
     borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.danger,
+    backgroundColor: '#EF4444',
   },
-  deleteBtnText: { color: colors.danger, fontSize: 14, fontWeight: '500' },
 });

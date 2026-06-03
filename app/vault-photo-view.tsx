@@ -147,8 +147,8 @@ export default function VaultPhotoViewScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-          <Text style={[styles.actionText, { color: '#EF4444' }]}>Apagar</Text>
+          <Ionicons name="trash-outline" size={20} color="#fff" />
+          <Text style={styles.actionTextPrimary}>Apagar</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -165,6 +165,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     padding: spacing.md,
+    paddingBottom: spacing.xl + spacing.md,
     gap: spacing.md,
     backgroundColor: colors.background,
   },
@@ -178,6 +179,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.surface,
   },
-  deleteBtn: { backgroundColor: colors.surface },
+  deleteBtn: { backgroundColor: '#EF4444' },
   actionText: { color: colors.text, fontSize: 14, fontWeight: '500' },
+  actionTextPrimary: { color: '#fff', fontSize: 15, fontWeight: '600' },
 });

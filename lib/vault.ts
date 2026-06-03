@@ -15,6 +15,7 @@ const PBKDF2_ITERATIONS = 100000;
 const KEY_LENGTH_BYTES = 32; // AES-256
 const MAX_PHOTO_SIZE_BYTES = 15 * 1024 * 1024; // 15MB
 const MAX_DOC_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+const MAX_AUDIO_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 const PHOTO_COMPRESSION_QUALITY = 0.85;
 const THUMBNAIL_SIZE = 200;
 const THUMBNAIL_QUALITY = 0.7;
@@ -695,6 +696,167 @@ export async function deleteDocumentFromVault(userId: string, itemId: string): P
       .from(STORAGE_BUCKET)
       .remove([item.storage_path])
       .catch(() => {});
+  }
+
+  const { error } = await supabase
+    .from('vault_items')
+    .delete()
+    .eq('user_id', userId)
+    .eq('id', itemId);
+
+  if (error) {
+    throw new Error(`Erro ao apagar: ${error.message}`);
+  }
+}
+
+export async function addAudioToVault(params: {
+  userId: string;
+  fileUri: string;
+  filename: string;
+  mimeType: string;
+}): Promise<VaultItem> {
+  const key = await getKeyFromKeychain(params.userId);
+  if (!key) {
+    throw new Error('Cofre trancado. Destranque antes.');
+  }
+
+  const base64 = await FileSystem.readAsStringAsync(params.fileUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  const sizeBytes = base64.length * 0.75;
+  if (sizeBytes > MAX_AUDIO_SIZE_BYTES) {
+    throw new Error('Áudio muito grande (limite 50MB).');
+  }
+
+  // Verifica espaço no cofre
+  const usage = await getVaultUsage(params.userId);
+  const estimatedNewSize = Math.floor(base64.length * 1.4);
+  if (usage.used + estimatedNewSize > VAULT_LIMIT_BYTES) {
+    throw new Error('Seu Cofre está cheio. Apague algo antes de adicionar.');
+  }
+
+  const encContent = await encryptString(base64, key);
+  const encFilename = await encryptString(params.filename, key);
+  const metadata = JSON.stringify({ mimeType: params.mimeType, originalSize: sizeBytes });
+  const encMetadata = await encryptString(metadata, key);
+
+  const itemId = Crypto.randomUUID();
+  const storagePath = `${params.userId}/${itemId}.enc`;
+  const payload = `${encContent.ciphertext}:${encContent.iv}`;
+
+  const { error: upErr } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, payload, { contentType: 'text/plain', upsert: false });
+  if (upErr) {
+    throw new Error(`Falha ao subir áudio: ${upErr.message}`);
+  }
+
+  const totalSizeBytes = Math.floor(payload.length / 2);
+  const { data, error } = await supabase
+    .from('vault_items')
+    .insert({
+      id: itemId,
+      user_id: params.userId,
+      item_type: 'audio',
+      encrypted_filename: `${encFilename.ciphertext}:${encFilename.iv}`,
+      encrypted_metadata: `${encMetadata.ciphertext}:${encMetadata.iv}`,
+      storage_path: storagePath,
+      size_bytes: totalSizeBytes,
+      iv: encContent.iv,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]).catch(() => {});
+    throw new Error(`Falha ao salvar item: ${error?.message}`);
+  }
+
+  return data as VaultItem;
+}
+
+export async function getAudioFromVault(userId: string, itemId: string): Promise<{
+  fileUri: string;
+  filename: string;
+  mimeType: string;
+}> {
+  const key = await getKeyFromKeychain(userId);
+  if (!key) {
+    throw new Error('Cofre trancado.');
+  }
+
+  const { data: item } = await supabase
+    .from('vault_items')
+    .select('storage_path, encrypted_filename, encrypted_metadata')
+    .eq('user_id', userId)
+    .eq('id', itemId)
+    .maybeSingle();
+
+  if (!item?.storage_path) {
+    throw new Error('Áudio não encontrado.');
+  }
+
+  const [fnameCipher, fnameIv] = item.encrypted_filename.split(':');
+  const filename = await decryptString(fnameCipher, fnameIv, key);
+
+  let mimeType = 'audio/mpeg';
+  if (item.encrypted_metadata) {
+    try {
+      const [metaCipher, metaIv] = item.encrypted_metadata.split(':');
+      const metaStr = await decryptString(metaCipher, metaIv, key);
+      const meta = JSON.parse(metaStr);
+      mimeType = meta.mimeType || mimeType;
+    } catch {
+      // metadata opcional
+    }
+  }
+
+  const { data: signed, error: signErr } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(item.storage_path, 60);
+
+  if (signErr || !signed?.signedUrl) {
+    throw new Error(`Falha ao gerar URL: ${signErr?.message}`);
+  }
+
+  const response = await fetch(signed.signedUrl);
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar: HTTP ${response.status}`);
+  }
+
+  const payloadText = await response.text();
+  const [ciphertext, iv] = payloadText.split(':');
+  if (!ciphertext || !iv) {
+    throw new Error('Áudio corrompido.');
+  }
+
+  const base64 = await decryptString(ciphertext, iv, key);
+
+  // Decide extensão baseada no mimeType (importante pra player funcionar)
+  let ext = 'm4a';
+  if (mimeType.includes('mp3') || mimeType.includes('mpeg')) ext = 'mp3';
+  else if (mimeType.includes('wav')) ext = 'wav';
+  else if (mimeType.includes('m4a') || mimeType.includes('mp4')) ext = 'm4a';
+
+  const tempPath = `${FileSystem.cacheDirectory}vault_audio_${itemId}.${ext}`;
+  await FileSystem.writeAsStringAsync(tempPath, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  return { fileUri: tempPath, filename, mimeType };
+}
+
+export async function deleteAudioFromVault(userId: string, itemId: string): Promise<void> {
+  const { data: item } = await supabase
+    .from('vault_items')
+    .select('storage_path')
+    .eq('user_id', userId)
+    .eq('id', itemId)
+    .maybeSingle();
+
+  if (item?.storage_path) {
+    await supabase.storage.from(STORAGE_BUCKET).remove([item.storage_path]).catch(() => {});
   }
 
   const { error } = await supabase

@@ -79,7 +79,8 @@
             }
           ]
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

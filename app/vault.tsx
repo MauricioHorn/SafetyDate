@@ -21,7 +21,9 @@ import {
   deleteVaultItem,
   deletePhotoFromVault,
   deleteDocumentFromVault,
+  deleteAudioFromVault,
   addDocumentToVault,
+  addAudioToVault,
   decryptVaultItem,
   decryptString,
   getKeyFromKeychain,
@@ -73,6 +75,21 @@ export default function VaultScreen() {
               const filename = await decryptString(fnameCipher, fnameIv, key);
               return { ...item, filename, content: thumbBase64 };
             } else if (tab === 'document') {
+              const [fnameCipher, fnameIv] = item.encrypted_filename.split(':');
+              const filename = await decryptString(fnameCipher, fnameIv, key);
+              let mimeType = '';
+              if (item.encrypted_metadata) {
+                try {
+                  const [metaCipher, metaIv] = item.encrypted_metadata.split(':');
+                  const metaStr = await decryptString(metaCipher, metaIv, key);
+                  const meta = JSON.parse(metaStr);
+                  mimeType = meta.mimeType || '';
+                } catch {
+                  // metadata opcional
+                }
+              }
+              return { ...item, filename, content: mimeType };
+            } else if (tab === 'audio') {
               const [fnameCipher, fnameIv] = item.encrypted_filename.split(':');
               const filename = await decryptString(fnameCipher, fnameIv, key);
               let mimeType = '';
@@ -145,6 +162,8 @@ export default function VaultScreen() {
             await deletePhotoFromVault(userId, item.id);
           } else if (item.item_type === 'document') {
             await deleteDocumentFromVault(userId, item.id);
+          } else if (item.item_type === 'audio') {
+            await deleteAudioFromVault(userId, item.id);
           } else {
             await deleteVaultItem(userId, item.id);
           }
@@ -215,6 +234,34 @@ export default function VaultScreen() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Tente de novo.';
       Alert.alert('Erro ao salvar documento', message);
+      setLoading(false);
+    }
+  };
+
+  const handleAddAudio = async () => {
+    if (!userId) return;
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/*'],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+
+    if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+    const asset = result.assets[0];
+    setLoading(true);
+    try {
+      await addAudioToVault({
+        userId,
+        fileUri: asset.uri,
+        filename: asset.name,
+        mimeType: asset.mimeType || 'audio/mpeg',
+      });
+      await loadItems(userId, activeTab);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Tente de novo.';
+      Alert.alert('Erro ao salvar áudio', message);
       setLoading(false);
     }
   };
@@ -414,11 +461,49 @@ export default function VaultScreen() {
             <Ionicons name="add" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
+      ) : activeTab === 'audio' ? (
+        <View style={{ flex: 1 }}>
+          {loading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : items.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="mic-outline" size={48} color={colors.textSecondary} />
+              <Text style={styles.emptyText}>Nenhum áudio ainda.</Text>
+              <Text style={styles.emptyHint}>Toque no + pra adicionar.</Text>
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: spacing.md, gap: 8 }}>
+              {items.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.docCard}
+                  onPress={() => router.push(`/vault-audio-view?id=${item.id}`)}
+                  onLongPress={() => handleDelete(item)}
+                >
+                  <Ionicons name="musical-notes-outline" size={28} color={colors.primary} />
+                  <View style={{ flex: 1, marginLeft: spacing.md }}>
+                    <Text style={styles.docName} numberOfLines={1}>
+                      {item.filename}
+                    </Text>
+                    <Text style={styles.docMeta}>{formatBytes(item.size_bytes)}</Text>
+                  </View>
+                  <Ionicons name="play-circle-outline" size={28} color={colors.primary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={styles.fab} onPress={handleAddAudio}>
+            <Ionicons name="add" size={28} color="#fff" />
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={styles.center}>
           <Ionicons name="construct-outline" size={48} color={colors.textSecondary} />
           <Text style={styles.emptyText}>Em breve.</Text>
-          <Text style={styles.emptyHint}>Vídeos e áudios virão nas próximas atualizações.</Text>
+          <Text style={styles.emptyHint}>Vídeos virão numa próxima atualização.</Text>
         </View>
       )}
     </View>

@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/lib/supabase';
 import { getPhotoFromVault, deletePhotoFromVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
@@ -23,6 +25,7 @@ export default function VaultPhotoViewScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [savingToGallery, setSavingToGallery] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -62,6 +65,42 @@ export default function VaultPhotoViewScreen() {
     ]);
   };
 
+  const handleSaveToGallery = async () => {
+    if (!photoUri) {
+      Alert.alert('Erro', 'Foto não disponível.');
+      return;
+    }
+
+    setSavingToGallery(true);
+    try {
+      const perm = await MediaLibrary.requestPermissionsAsync(true);
+      if (perm.status !== 'granted') {
+        Alert.alert(
+          'Sem permissão',
+          'O ELAS precisa de permissão pra salvar fotos na sua galeria. Você pode permitir nos Ajustes.'
+        );
+        return;
+      }
+
+      const base64 = photoUri.replace(/^data:image\/jpeg;base64,/, '');
+      const tempPath = `${FileSystem.cacheDirectory}vault_export_${Date.now()}.jpg`;
+      await FileSystem.writeAsStringAsync(tempPath, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await MediaLibrary.saveToLibraryAsync(tempPath);
+
+      await FileSystem.deleteAsync(tempPath, { idempotent: true }).catch(() => {});
+
+      Alert.alert('Pronto', 'Foto salva na sua galeria.');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Não foi possível salvar.';
+      Alert.alert('Erro ao salvar', message);
+    } finally {
+      setSavingToGallery(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Stack.Screen
@@ -95,15 +134,17 @@ export default function VaultPhotoViewScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.actionBtn}
-          onPress={() =>
-            Alert.alert(
-              'Em breve',
-              'A opção de salvar de volta na galeria virá em uma próxima atualização.'
-            )
-          }
+          onPress={handleSaveToGallery}
+          disabled={savingToGallery}
         >
-          <Ionicons name="download-outline" size={20} color={colors.text} />
-          <Text style={styles.actionText}>Salvar na galeria</Text>
+          {savingToGallery ? (
+            <ActivityIndicator color={colors.text} size="small" />
+          ) : (
+            <Ionicons name="download-outline" size={20} color={colors.text} />
+          )}
+          <Text style={styles.actionText}>
+            {savingToGallery ? 'Salvando...' : 'Salvar na galeria'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={handleDelete}>
           <Ionicons name="trash-outline" size={20} color="#EF4444" />

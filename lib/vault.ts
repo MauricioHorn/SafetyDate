@@ -19,6 +19,7 @@ const PHOTO_COMPRESSION_QUALITY = 0.85;
 const THUMBNAIL_SIZE = 200;
 const THUMBNAIL_QUALITY = 0.7;
 const STORAGE_BUCKET = 'vault-files';
+const VAULT_LIMIT_BYTES = 1024 * 1024 * 1024; // 1 GB
 
 export type VaultItemType = 'photo' | 'video' | 'note' | 'document' | 'audio';
 
@@ -307,6 +308,22 @@ export async function listVaultItems(
   return (data || []) as VaultItem[];
 }
 
+export async function getVaultUsage(userId: string): Promise<{ used: number; limit: number; percent: number }> {
+  const { data, error } = await supabase
+    .from('vault_items')
+    .select('size_bytes')
+    .eq('user_id', userId);
+
+  if (error) {
+    return { used: 0, limit: VAULT_LIMIT_BYTES, percent: 0 };
+  }
+
+  const used = (data || []).reduce((sum, item) => sum + (item.size_bytes || 0), 0);
+  const percent = Math.min(100, Math.round((used / VAULT_LIMIT_BYTES) * 100));
+
+  return { used, limit: VAULT_LIMIT_BYTES, percent };
+}
+
 /**
  * Adiciona um item ao cofre (criptografa + sobe pro Supabase + cria linha).
  */
@@ -408,6 +425,13 @@ export async function addPhotoToVault(params: {
   const encOriginal = await encryptString(base64, key);
   const encThumb = await encryptString(thumb.base64, key);
   const encFilename = await encryptString(`foto_${new Date().toISOString().slice(0, 19)}.jpg`, key);
+
+  // Verifica se cabe no cofre antes de subir
+  const usage = await getVaultUsage(params.userId);
+  const estimatedNewSize = Math.floor(base64.length * 1.4); // ciphertext em hex é ~1.4x maior que base64
+  if (usage.used + estimatedNewSize > VAULT_LIMIT_BYTES) {
+    throw new Error('Seu Cofre está cheio. Apague algo antes de adicionar.');
+  }
 
   const itemId = Crypto.randomUUID();
   const originalPath = `${params.userId}/${itemId}.enc`;
@@ -548,6 +572,12 @@ export async function addDocumentToVault(params: {
 
   const metadata = JSON.stringify({ mimeType: params.mimeType, originalSize: sizeBytes });
   const encMetadata = await encryptString(metadata, key);
+
+  const usage = await getVaultUsage(params.userId);
+  const estimatedNewSize = Math.floor(base64.length * 1.4);
+  if (usage.used + estimatedNewSize > VAULT_LIMIT_BYTES) {
+    throw new Error('Seu Cofre está cheio. Apague algo antes de adicionar.');
+  }
 
   const itemId = Crypto.randomUUID();
   const storagePath = `${params.userId}/${itemId}.enc`;

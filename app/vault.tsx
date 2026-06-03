@@ -26,6 +26,7 @@ import {
   decryptString,
   getKeyFromKeychain,
   addPhotoToVault,
+  getVaultUsage,
 } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
 
@@ -51,6 +52,7 @@ export default function VaultScreen() {
   const [items, setItems] = useState<Array<VaultItem & { filename: string; content: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [usage, setUsage] = useState<{ used: number; limit: number; percent: number } | null>(null);
 
   const loadItems = useCallback(async (uid: string, tab: Tab) => {
     setLoading(true);
@@ -115,6 +117,12 @@ export default function VaultScreen() {
         }
         setUserId(user.id);
         await loadItems(user.id, activeTab);
+        try {
+          const u = await getVaultUsage(user.id);
+          setUsage(u);
+        } catch {
+          setUsage(null);
+        }
       })();
     }, [activeTab, loadItems, router])
   );
@@ -226,6 +234,25 @@ export default function VaultScreen() {
           ),
         }}
       />
+
+      {usage && (
+        <View style={styles.usageBar}>
+          <Ionicons
+            name="archive-outline"
+            size={14}
+            color={usage.percent >= 95 ? '#EF4444' : usage.percent >= 80 ? '#F59E0B' : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.usageText,
+              usage.percent >= 95 && { color: '#EF4444' },
+              usage.percent >= 80 && usage.percent < 95 && { color: '#F59E0B' },
+            ]}
+          >
+            {formatBytes(usage.used)} de 1 GB ({usage.percent}%)
+          </Text>
+        </View>
+      )}
 
       <ScrollView
         horizontal
@@ -399,6 +426,19 @@ export default function VaultScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  usageBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  usageText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
   tabsBar: { maxHeight: 50, paddingVertical: spacing.sm },
   tab: {
     flexDirection: 'row',

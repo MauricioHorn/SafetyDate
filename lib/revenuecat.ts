@@ -4,8 +4,8 @@
  * Abstrai Apple StoreKit + Google Play Billing numa única API.
  *
  * IDs de produto configurados:
- * - safetydate_single     → Consulta avulsa (R$ 27, non-consumable de 1 uso)
- * - safetydate_annual     → Plano anual (R$ 97/ano, auto-renewable subscription)
+ * - elas_pro_monthly     → Plano mensal (R$ 29,90/mês, auto-renewable subscription)
+ * - elas_pro_annual     → Plano anual (R$ 149,90/ano, auto-renewable subscription)
  *
  * Entitlement:
  * - "premium" → libera buscas ilimitadas
@@ -22,8 +22,8 @@ const IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY!;
 const ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY!;
 
 export const ENTITLEMENT_ID = 'premium';
-export const PRODUCT_SINGLE = 'safetydate_single';
-export const PRODUCT_ANNUAL = 'safetydate_annual';
+export const PRODUCT_MONTHLY = 'elas_pro_monthly';
+export const PRODUCT_ANNUAL = 'elas_pro_annual';
 
 let initialized = false;
 

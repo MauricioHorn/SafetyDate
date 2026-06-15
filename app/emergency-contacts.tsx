@@ -20,6 +20,7 @@ import {
   getEmergencyContacts,
   addEmergencyContact,
   deleteEmergencyContact,
+  setPrimaryContact,
 } from '../lib/safety';
 
 export default function EmergencyContactsScreen() {
@@ -91,6 +92,16 @@ export default function EmergencyContactsScreen() {
       setSaving(false);
     }
   };
+
+  async function handleSetPrimary(contact: EmergencyContact) {
+    if (contact.is_primary) return;
+    try {
+      await setPrimaryContact(contact.id);
+      load();
+    } catch {
+      Alert.alert('Erro', 'Não foi possível definir como principal.');
+    }
+  }
 
   const handleDelete = (contact: EmergencyContact) => {
     Alert.alert(
@@ -183,7 +194,7 @@ export default function EmergencyContactsScreen() {
                     <Text style={styles.contactName}>{contact.name}</Text>
                     {contact.is_primary && (
                       <View style={styles.primaryBadge}>
-                        <Text style={styles.primaryBadgeText}>Principal</Text>
+                        <Text style={styles.primaryBadgeText}>PRINCIPAL</Text>
                       </View>
                     )}
                   </View>
@@ -194,6 +205,15 @@ export default function EmergencyContactsScreen() {
                     <Text style={styles.contactRelationship}>
                       {contact.relationship}
                     </Text>
+                  )}
+                  {!contact.is_primary && (
+                    <TouchableOpacity
+                      onPress={() => handleSetPrimary(contact)}
+                      style={styles.makePrimaryBtn}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text style={styles.makePrimaryText}>Tornar principal</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
                 <TouchableOpacity
@@ -366,6 +386,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     letterSpacing: 0.5,
+  },
+  makePrimaryBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+  },
+  makePrimaryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF4D7E',
   },
   contactPhone: {
     fontSize: 14,

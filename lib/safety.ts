@@ -546,3 +546,13 @@ export function checkArrivalAtSafePlace(
   }
   return null;
 }
+
+export async function setPrimaryContact(contactId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  // tira o principal de todos
+  await supabase.from('emergency_contacts').update({ is_primary: false }).eq('user_id', user.id);
+  // define o novo principal
+  const { error } = await supabase.from('emergency_contacts').update({ is_primary: true }).eq('id', contactId);
+  if (error) throw error;
+}

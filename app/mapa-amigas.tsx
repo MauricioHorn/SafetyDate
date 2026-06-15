@@ -6,12 +6,20 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { LiveFriend, getLiveFriends } from '../lib/location-share';
+import {
+  LiveFriend,
+  getLiveFriends,
+  startLiveShare,
+  stopLiveShare,
+  sendLinkToPrimaryContact,
+} from '../lib/location-share';
+import { getActiveSession } from '../lib/safety';
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -25,6 +33,8 @@ function timeAgo(iso: string): string {
 export default function MapaAmigasScreen() {
   const [friends, setFriends] = useState<LiveFriend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSharing, setIsSharing] = useState(false);
+  const [busy, setBusy] = useState(false);
   const mapRef = useRef<MapView | null>(null);
 
   const load = useCallback(async () => {
@@ -32,6 +42,11 @@ export default function MapaAmigasScreen() {
       setLoading(true);
       const data = await getLiveFriends();
       setFriends(data);
+      // verifica se EU já estou compartilhando ao vivo
+      try {
+        const myActive = await getActiveSession();
+        setIsSharing(!!myActive);
+      } catch {}
       // centraliza no primeiro, se houver
       if (data.length > 0 && mapRef.current) {
         mapRef.current.animateToRegion({
@@ -54,15 +69,39 @@ export default function MapaAmigasScreen() {
     }, [load])
   );
 
+  async function handleToggleShare() {
+    setBusy(true);
+    if (isSharing) {
+      const res = await stopLiveShare();
+      if (res.success) {
+        setIsSharing(false);
+      } else {
+        Alert.alert('Atenção', res.error || 'Erro ao parar.');
+      }
+    } else {
+      const res = await startLiveShare();
+      if (res.success) {
+        setIsSharing(true);
+        Alert.alert('Você está ao vivo', 'Suas amigas que aceitaram já podem ver sua localização no mapa.');
+      } else {
+        Alert.alert('Atenção', res.error || 'Não foi possível ativar.');
+      }
+    }
+    setBusy(false);
+  }
+
+  async function handleSendLink() {
+    const res = await sendLinkToPrimaryContact();
+    if (res.noContact) {
+      Alert.alert('Cadastre um contato', 'Você ainda não tem um contato de confiança cadastrado para enviar o link.');
+    } else if (!res.success) {
+      Alert.alert('Atenção', res.error || 'Não foi possível enviar.');
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <Stack.Screen
-        options={{
-          title: 'Amigas no mapa',
-          headerStyle: { backgroundColor: '#0A0A14' },
-          headerTintColor: '#FFFFFF',
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
 
       <MapView
         ref={mapRef}
@@ -87,9 +126,38 @@ export default function MapaAmigasScreen() {
         ))}
       </MapView>
 
+      <SafeAreaView edges={['top']} style={styles.backWrap} pointerEvents="box-none">
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+      </SafeAreaView>
+
       {/* Painel inferior flutuante */}
       <View style={styles.panel}>
         <View style={styles.grabber} />
+        <View style={styles.shareRow}>
+          <TouchableOpacity
+            style={[styles.shareBtn, isSharing && styles.shareBtnActive]}
+            onPress={handleToggleShare}
+            disabled={busy}
+          >
+            {busy ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name={isSharing ? 'eye-off' : 'navigate'} size={18} color="#FFFFFF" />
+                <Text style={styles.shareBtnText}>
+                  {isSharing ? 'Parar de compartilhar' : 'Aparecer pras minhas amigas'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+          {isSharing && (
+            <TouchableOpacity style={styles.linkBtn} onPress={handleSendLink}>
+              <Ionicons name="link" size={20} color="#FF4D7E" />
+            </TouchableOpacity>
+          )}
+        </View>
         {loading ? (
           <View style={styles.panelContent}>
             <ActivityIndicator size="small" color="#FF4D7E" />
@@ -129,6 +197,20 @@ export default function MapaAmigasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A14' },
   map: { flex: 1 },
+  backWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  backBtn: {
+    margin: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(10,10,20,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   panel: {
     position: 'absolute',
     left: 12,
@@ -152,6 +234,38 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#3A3A52',
     marginBottom: 10,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  shareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FF4D7E',
+    paddingVertical: 13,
+    borderRadius: 12,
+  },
+  shareBtnActive: {
+    backgroundColor: '#3A3A52',
+  },
+  shareBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  linkBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,77,126,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   panelContent: {
     alignItems: 'center',

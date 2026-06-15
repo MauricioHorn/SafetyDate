@@ -1,7 +1,21 @@
+import { Linking } from 'react-native';
 import { supabase } from './supabase';
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
-import { getEmergencyContacts, EmergencyContact } from './safety';
+import * as SMS from 'expo-sms';
+import {
+  getEmergencyContacts,
+  EmergencyContact,
+  startSafetySession,
+  endSafetySession,
+  getActiveSession,
+  createSessionViews,
+  type SafetySession,
+} from './safety';
+import {
+  startBackgroundLocationUpdates,
+  stopBackgroundLocationUpdates,
+} from './background-location';
 
 /**
  * Salva a localização atual da usuária em user_locations.
@@ -218,4 +232,102 @@ export async function rejectInvite(shareId: string): Promise<{ success: boolean;
     return { success: false, error: 'Não foi possível recusar' };
   }
   return { success: true };
+}
+
+/**
+ * Ativa o compartilhamento ao vivo: liga a sessão (aparece no mapa das amigas
+ * que aceitaram) + tenta ligar o background. NÃO exige contato nem local seguro.
+ * Retorna a sessão criada.
+ */
+export async function startLiveShare(): Promise<{ success: boolean; session?: SafetySession; error?: string }> {
+  try {
+    const perm = await Location.requestForegroundPermissionsAsync();
+    if (perm.status !== 'granted') {
+      return { success: false, error: 'Precisamos da sua localização para compartilhar ao vivo.' };
+    }
+
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    let battery: number | undefined;
+    try {
+      battery = Math.round((await Battery.getBatteryLevelAsync()) * 100);
+    } catch {}
+
+    const session = await startSafetySession({
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+      batteryLevel: battery,
+    });
+
+    // tenta background; se a permissão "Sempre" não foi dada, segue limitado (não quebra)
+    try {
+      const bg = await Location.requestBackgroundPermissionsAsync();
+      if (bg.status === 'granted') {
+        await startBackgroundLocationUpdates(session.id);
+      }
+    } catch (e) {
+      console.log('[location-share] background não iniciou (segue limitado):', e);
+    }
+
+    return { success: true, session };
+  } catch (err: any) {
+    console.log('[location-share] startLiveShare erro:', err);
+    return { success: false, error: err?.message || 'Não foi possível ativar.' };
+  }
+}
+
+/**
+ * Encerra o compartilhamento ao vivo: encerra a sessão + para o background.
+ */
+export async function stopLiveShare(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getActiveSession();
+    if (session) {
+      await endSafetySession(session.id, 'manual');
+    }
+    await stopBackgroundLocationUpdates().catch(() => {});
+    return { success: true };
+  } catch (err: any) {
+    console.log('[location-share] stopLiveShare erro:', err);
+    return { success: false, error: 'Não foi possível encerrar.' };
+  }
+}
+
+/**
+ * Manda o link de acompanhamento por SMS pro contato PRINCIPAL.
+ * Requer uma sessão ativa. Se não houver contato, retorna noContact.
+ */
+export async function sendLinkToPrimaryContact(): Promise<{ success: boolean; noContact?: boolean; error?: string }> {
+  try {
+    const session = await getActiveSession();
+    if (!session) return { success: false, error: 'Ative o compartilhamento ao vivo primeiro.' };
+
+    const contacts = await getEmergencyContacts();
+    const primary = contacts.find((c) => c.is_primary) || contacts[0];
+    if (!primary) return { success: false, noContact: true };
+
+    const views = await createSessionViews(session.id, [primary]);
+    const view = views[0];
+    if (!view) return { success: false, error: 'Não foi possível gerar o link.' };
+
+    const message =
+      `🛡️ ELAS\n\n` +
+      `Estou compartilhando minha localização em tempo real. Você pode me acompanhar aqui:\n\n` +
+      `${view.url}\n\n` +
+      `Se algo der errado, vou apertar o botão SOS.`;
+
+    // wa.me precisa do número só com dígitos (sem +)
+    const waNumber = primary.phone.replace(/\D/g, '');
+    const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
+
+    const canOpen = await Linking.canOpenURL(waUrl);
+    if (!canOpen) {
+      return { success: false, error: 'Não foi possível abrir o WhatsApp.' };
+    }
+    await Linking.openURL(waUrl);
+
+    return { success: true };
+  } catch (err: any) {
+    console.log('[location-share] sendLinkToPrimaryContact erro:', err);
+    return { success: false, error: 'Não foi possível enviar o link.' };
+  }
 }

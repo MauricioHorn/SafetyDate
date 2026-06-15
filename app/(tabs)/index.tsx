@@ -81,15 +81,6 @@ export default function Home() {
           </Pressable>
         </View>
 
-        {activeSession && (
-          <View style={styles.activeSessionWrapper}>
-            <SafetyModeActiveCard
-              session={activeSession}
-              onEnded={() => setActiveSession(null)}
-            />
-          </View>
-        )}
-
         <Pressable
           style={styles.primaryCard}
           onPress={() => router.push('/(tabs)/search')}
@@ -110,16 +101,16 @@ export default function Home() {
 
         <Pressable
           style={styles.secondaryActionCard}
-          onPress={() => router.push('/safety-mode')}
+          onPress={() => router.push('/mapa-amigas')}
           accessibilityRole="button"
         >
           <View style={styles.secondaryActionIcon}>
-            <Ionicons name="shield-half" size={28} color={colors.primary} />
+            <Ionicons name="location" size={28} color={colors.primary} />
           </View>
           <View style={styles.secondaryActionText}>
-            <Text style={styles.secondaryActionTitle}>Vou sair agora</Text>
+            <Text style={styles.secondaryActionTitle}>Mapa de amigas</Text>
             <Text style={styles.secondaryActionSubtitle}>
-              Ativar Modo Seguro e compartilhar localização
+              Compartilhe sua localização em tempo real
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
@@ -176,7 +167,7 @@ export default function Home() {
             <View style={styles.statsDividerV} />
             <View style={styles.statsCell}>
               <Text style={styles.statsNumber}>—</Text>
-              <Text style={styles.statsLabel}>Saídas com Modo Seguro</Text>
+              <Text style={styles.statsLabel}>Saídas compartilhadas</Text>
             </View>
           </View>
           <View style={styles.statsDividerH} />

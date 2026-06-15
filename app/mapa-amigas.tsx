@@ -15,6 +15,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   LiveFriend,
   getLiveFriends,
+  getPendingInvites,
   startLiveShare,
   stopLiveShare,
   sendLinkToPrimaryContact,
@@ -35,6 +36,7 @@ export default function MapaAmigasScreen() {
   const [loading, setLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const mapRef = useRef<MapView | null>(null);
 
   const load = useCallback(async () => {
@@ -46,6 +48,10 @@ export default function MapaAmigasScreen() {
       try {
         const myActive = await getActiveSession();
         setIsSharing(!!myActive);
+      } catch {}
+      try {
+        const invites = await getPendingInvites();
+        setPendingCount(invites.length);
       } catch {}
       // centraliza no primeiro, se houver
       if (data.length > 0 && mapRef.current) {
@@ -126,10 +132,23 @@ export default function MapaAmigasScreen() {
         ))}
       </MapView>
 
-      <SafeAreaView edges={['top']} style={styles.backWrap} pointerEvents="box-none">
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+      <SafeAreaView edges={['top']} style={styles.topBar} pointerEvents="box-none">
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
         </TouchableOpacity>
+        <View style={styles.topRight}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/convites')}>
+            <Ionicons name="mail-outline" size={22} color="#FFFFFF" />
+            {pendingCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/adicionar-amiga')}>
+            <Ionicons name="person-add-outline" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
 
       {/* Painel inferior flutuante */}
@@ -197,12 +216,21 @@ export default function MapaAmigasScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A14' },
   map: { flex: 1 },
-  backWrap: {
+  topBar: {
     position: 'absolute',
     top: 0,
     left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
   },
-  backBtn: {
+  topRight: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  iconBtn: {
     margin: 12,
     width: 40,
     height: 40,
@@ -210,6 +238,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,10,20,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FF4D7E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   panel: {
     position: 'absolute',

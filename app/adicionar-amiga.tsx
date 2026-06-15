@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Stack, useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -88,9 +88,15 @@ export default function AdicionarAmigaScreen() {
         </View>
 
         {items.length === 0 && (
-          <Text style={styles.empty}>
-            Você ainda não tem contatos de confiança cadastrados. Cadastre primeiro em "Contatos de confiança".
-          </Text>
+          <View>
+            <Text style={styles.empty}>
+              Você ainda não tem contatos de confiança cadastrados.
+            </Text>
+            <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/emergency-contacts')}>
+              <Ionicons name="add-circle-outline" size={20} color="#FF4D7E" />
+              <Text style={styles.manageBtnText}>Cadastrar contatos de confiança</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {items.map((item) => (
@@ -125,6 +131,12 @@ export default function AdicionarAmigaScreen() {
             </View>
           </View>
         ))}
+        {items.length > 0 && (
+          <TouchableOpacity style={styles.manageBtn} onPress={() => router.push('/emergency-contacts')}>
+            <Ionicons name="add-circle-outline" size={20} color="#FF4D7E" />
+            <Text style={styles.manageBtnText}>Gerenciar contatos de confiança</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -153,4 +165,21 @@ const styles = StyleSheet.create({
   tagGrayText: { color: '#7A7A94', fontWeight: '600', fontSize: 13 },
   tagGreen: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#3DD68C', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   tagGreenText: { color: '#0A0A14', fontWeight: '700', fontSize: 13 },
+  manageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FF4D7E',
+    borderStyle: 'dashed',
+  },
+  manageBtnText: {
+    color: '#FF4D7E',
+    fontWeight: '600',
+    fontSize: 14,
+  },
 });

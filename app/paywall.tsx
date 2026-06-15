@@ -11,7 +11,7 @@ import {
   purchasePackage,
   restorePurchases,
   PRODUCT_ANNUAL,
-  PRODUCT_SINGLE,
+  PRODUCT_MONTHLY,
 } from '@/lib/revenuecat';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 
@@ -101,7 +101,7 @@ export default function Paywall() {
   }
 
   const annualPkg = offering.availablePackages.find((p) => p.product.identifier === PRODUCT_ANNUAL);
-  const singlePkg = offering.availablePackages.find((p) => p.product.identifier === PRODUCT_SINGLE);
+  const monthlyPkg = offering.availablePackages.find((p) => p.product.identifier === PRODUCT_MONTHLY);
 
   return (
     <View style={styles.container}>
@@ -143,11 +143,12 @@ export default function Paywall() {
               recommended
             />
           )}
-          {singlePkg && (
+          {monthlyPkg && (
             <PlanCard
-              selected={selectedPkg?.identifier === singlePkg.identifier}
-              onSelect={() => setSelectedPkg(singlePkg)}
-              pkg={singlePkg}
+              selected={selectedPkg?.identifier === monthlyPkg.identifier}
+              onSelect={() => setSelectedPkg(monthlyPkg)}
+              pkg={monthlyPkg}
+              isMonthly
             />
           )}
         </View>
@@ -208,12 +209,14 @@ function PlanCard({
   onSelect,
   pkg,
   isAnnual,
+  isMonthly,
   recommended,
 }: {
   selected: boolean;
   onSelect: () => void;
   pkg: PurchasesPackage;
   isAnnual?: boolean;
+  isMonthly?: boolean;
   recommended?: boolean;
 }) {
   const { product } = pkg;
@@ -228,9 +231,9 @@ function PlanCard({
       )}
       <View style={styles.planRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.planName}>{product.title || (isAnnual ? 'Plano Anual' : 'Consulta avulsa')}</Text>
+          <Text style={styles.planName}>{product.title || (isAnnual ? 'Plano Anual' : 'Plano Mensal')}</Text>
           <Text style={styles.planDescription}>
-            {isAnnual ? 'Pesquisas ilimitadas por 12 meses' : 'Uma única pesquisa'}
+            {isAnnual ? 'Pesquisas ilimitadas por 12 meses' : 'Pesquisas ilimitadas por 1 mês'}
           </Text>
         </View>
         <View style={[styles.radio, selected && styles.radioSelected]}>
@@ -242,6 +245,7 @@ function PlanCard({
         <Text style={styles.priceValue}>
           {product.priceString}
           {isAnnual && <Text style={styles.priceSuffix}>/ano</Text>}
+          {isMonthly && <Text style={styles.priceSuffix}>/mês</Text>}
         </Text>
         {monthlyHint && <Text style={styles.priceHint}>menos de {monthlyHint}/mês</Text>}
       </View>

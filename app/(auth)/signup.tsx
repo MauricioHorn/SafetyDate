@@ -25,12 +25,21 @@ export default function Signup() {
       return;
     }
 
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+      Alert.alert('Atenção', 'Informe um celular válido com DDD.');
+      return;
+    }
+    const normalizedPhone = cleanPhone.startsWith('55')
+      ? `+${cleanPhone}`
+      : `+55${cleanPhone}`;
+
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName, phone },
+        data: { full_name: fullName, phone: normalizedPhone },
       },
     });
     setLoading(false);
@@ -83,7 +92,7 @@ export default function Signup() {
               keyboardType="email-address"
             />
             <Input
-              label="Celular (opcional)"
+              label="Celular"
               icon="call"
               placeholder="(11) 99999-9999"
               value={phone}

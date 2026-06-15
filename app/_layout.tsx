@@ -5,6 +5,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { initRevenueCat, logoutRevenueCat } from '@/lib/revenuecat';
+import { updateMyLocation } from '@/lib/location-share';
 import { registerForPushNotifications } from '@/lib/push-notifications';
 import { colors } from '@/lib/theme';
 import { Session } from '@supabase/supabase-js';
@@ -27,6 +28,7 @@ export default function RootLayout() {
       if (session?.user) {
         initRevenueCat(session.user.id);
         void registerPushIfAuthenticated(session);
+        void updateMyLocation();
       }
       setLoading(false);
     });
@@ -36,6 +38,7 @@ export default function RootLayout() {
       if (event === 'SIGNED_IN' && session?.user) {
         initRevenueCat(session.user.id);
         void registerPushIfAuthenticated(session);
+        void updateMyLocation();
       } else if (event === 'SIGNED_OUT') {
         logoutRevenueCat();
       }

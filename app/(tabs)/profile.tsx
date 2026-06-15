@@ -132,6 +132,9 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Segurança</Text>
           <MenuItem icon="people-outline" label="Contatos de confiança" onPress={() => router.push('/emergency-contacts')} />
+          <MenuItem icon="location-outline" label="Adicionar amiga (mapa)" onPress={() => router.push('/adicionar-amiga')} />
+          <MenuItem icon="map-outline" label="Amigas no mapa" onPress={() => router.push('/mapa-amigas')} />
+          <MenuItem icon="mail-unread-outline" label="Convites" onPress={() => router.push('/convites')} />
           <MenuItem
             icon="keypad-outline"
             label="Senha de emergência"

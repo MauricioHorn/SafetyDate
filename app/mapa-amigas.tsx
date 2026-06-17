@@ -75,6 +75,16 @@ export default function MapaAmigasScreen() {
     }, [load])
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      const interval = setInterval(() => {
+        // só atualiza as amigas ao vivo, silenciosamente (sem mexer no loading)
+        getLiveFriends().then((data) => setFriends(data)).catch(() => {});
+      }, 15000);
+      return () => clearInterval(interval);
+    }, [])
+  );
+
   async function handleToggleShare() {
     setBusy(true);
     if (isSharing) {

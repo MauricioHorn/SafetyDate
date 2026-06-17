@@ -171,6 +171,7 @@ export interface LiveFriend {
   longitude: number;
   battery_level: number | null;
   last_update: string;
+  note: string | null;
 }
 
 /**

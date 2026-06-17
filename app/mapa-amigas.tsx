@@ -13,7 +13,7 @@ import {
 import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   LiveFriend,
   getLiveFriends,
@@ -141,15 +141,24 @@ export default function MapaAmigasScreen() {
         }}
         showsUserLocation
       >
-        {friends.map((f) => (
-          <Marker
-            key={f.friend_id}
-            coordinate={{ latitude: f.latitude, longitude: f.longitude }}
-            title={f.full_name || 'Amiga'}
-            description={`${timeAgo(f.last_update)}${f.battery_level != null ? ` · ${f.battery_level}%` : ''}`}
-            pinColor="#FF4D7E"
-          />
-        ))}
+        {friends.map((f) => {
+          const statusLine = f.battery_level != null ? `Bateria ${f.battery_level}%` : '';
+          return (
+            <Marker
+              key={f.friend_id}
+              coordinate={{ latitude: f.latitude, longitude: f.longitude }}
+              pinColor="#FF4D7E"
+            >
+              <Callout tooltip>
+                <View style={styles.callout}>
+                  <Text style={styles.calloutName}>{f.full_name || 'Amiga'}</Text>
+                  {f.note ? <Text style={styles.calloutNote}>{f.note}</Text> : null}
+                  {statusLine ? <Text style={styles.calloutStatus}>{statusLine}</Text> : null}
+                </View>
+              </Callout>
+            </Marker>
+          );
+        })}
       </MapView>
 
       <SafeAreaView edges={['top']} style={styles.topBar} pointerEvents="box-none">
@@ -479,4 +488,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF4D7E', alignItems: 'center',
   },
   modalConfirmText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  callout: {
+    width: 220,
+    backgroundColor: '#151525',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A42',
+  },
+  calloutName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  calloutNote: {
+    fontSize: 14,
+    color: '#FF4D7E',
+    fontWeight: '600',
+    marginBottom: 6,
+    lineHeight: 19,
+  },
+  calloutStatus: {
+    fontSize: 12.5,
+    color: '#B4B4C7',
+  },
 });

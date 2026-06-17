@@ -234,6 +234,33 @@ export async function rejectInvite(shareId: string): Promise<{ success: boolean;
   return { success: true };
 }
 
+async function invokeLivePush(sessionId: string, userId: string, note?: string): Promise<void> {
+  try {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseAnonKey) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-live-push`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ session_id: sessionId, user_id: userId, note: note || null }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.warn('[location-share] send-live-push falhou:', response.status, errorText);
+    }
+  } catch (error) {
+    console.warn('[location-share] send-live-push falhou:', error);
+  }
+}
+
 /**
  * Ativa o compartilhamento ao vivo: liga a sessão (aparece no mapa das amigas
  * que aceitaram) + tenta ligar o background. NÃO exige contato nem local seguro.
@@ -267,6 +294,12 @@ export async function startLiveShare(note?: string): Promise<{ success: boolean;
       }
     } catch (e) {
       console.log('[location-share] background não iniciou (segue limitado):', e);
+    }
+
+    // dispara push pras viewers (fire-and-forget, não bloqueia)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      void invokeLivePush(session.id, user.id, note);
     }
 
     return { success: true, session };

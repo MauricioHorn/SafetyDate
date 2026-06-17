@@ -206,6 +206,7 @@ export async function startSafetySession(params: {
   latitude: number;
   longitude: number;
   batteryLevel?: number;
+  note?: string;
 }): Promise<SafetySession> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -224,6 +225,7 @@ export async function startSafetySession(params: {
       current_latitude: params.latitude,
       current_longitude: params.longitude,
       battery_level: params.batteryLevel,
+      note: params.note || null,
     })
     .select()
     .single();

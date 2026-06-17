@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,6 +38,8 @@ export default function MapaAmigasScreen() {
   const [loading, setLoading] = useState(true);
   const [isSharing, setIsSharing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
   const mapRef = useRef<MapView | null>(null);
 
@@ -86,22 +90,28 @@ export default function MapaAmigasScreen() {
   );
 
   async function handleToggleShare() {
-    setBusy(true);
     if (isSharing) {
+      setBusy(true);
       const res = await stopLiveShare();
-      if (res.success) {
-        setIsSharing(false);
-      } else {
-        Alert.alert('Atenção', res.error || 'Erro ao parar.');
-      }
+      if (res.success) setIsSharing(false);
+      else Alert.alert('Atenção', res.error || 'Erro ao parar.');
+      setBusy(false);
     } else {
-      const res = await startLiveShare();
-      if (res.success) {
-        setIsSharing(true);
-        Alert.alert('Você está ao vivo', 'Suas amigas que aceitaram já podem ver sua localização no mapa.');
-      } else {
-        Alert.alert('Atenção', res.error || 'Não foi possível ativar.');
-      }
+      // vai ativar: abre o modal pra escrever o aviso
+      setNoteText('');
+      setShowNoteModal(true);
+    }
+  }
+
+  async function confirmActivate() {
+    setShowNoteModal(false);
+    setBusy(true);
+    const res = await startLiveShare(noteText.trim() || undefined);
+    if (res.success) {
+      setIsSharing(true);
+      Alert.alert('Você está ao vivo', 'Suas amigas que aceitaram já podem ver sua localização no mapa.');
+    } else {
+      Alert.alert('Atenção', res.error || 'Não foi possível ativar.');
     }
     setBusy(false);
   }
@@ -223,6 +233,32 @@ export default function MapaAmigasScreen() {
           </View>
         )}
       </View>
+
+      <Modal visible={showNoteModal} transparent animationType="fade" onRequestClose={() => setShowNoteModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Quer deixar um aviso?</Text>
+            <Text style={styles.modalSub}>Suas amigas vão ver junto com a notificação. (opcional)</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Ex: saindo com o boy, indo numa festa..."
+              placeholderTextColor="#7A7A94"
+              value={noteText}
+              onChangeText={setNoteText}
+              maxLength={120}
+              multiline
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowNoteModal(false)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={confirmActivate}>
+                <Text style={styles.modalConfirmText}>Ativar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -409,4 +445,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    backgroundColor: '#151525',
+    borderRadius: 20,
+    padding: 22,
+  },
+  modalTitle: { fontSize: 19, fontWeight: '800', color: '#FFFFFF', marginBottom: 6 },
+  modalSub: { fontSize: 13.5, color: '#B4B4C7', marginBottom: 16, lineHeight: 19 },
+  modalInput: {
+    backgroundColor: '#1E1E35',
+    borderRadius: 12,
+    padding: 14,
+    color: '#FFFFFF',
+    fontSize: 15,
+    minHeight: 70,
+    textAlignVertical: 'top',
+    marginBottom: 18,
+  },
+  modalBtns: { flexDirection: 'row', gap: 12 },
+  modalCancel: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: '#1E1E35', alignItems: 'center',
+  },
+  modalCancelText: { color: '#B4B4C7', fontWeight: '600', fontSize: 15 },
+  modalConfirm: {
+    flex: 1, paddingVertical: 13, borderRadius: 12,
+    backgroundColor: '#FF4D7E', alignItems: 'center',
+  },
+  modalConfirmText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
 });

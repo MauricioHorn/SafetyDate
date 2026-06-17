@@ -239,7 +239,7 @@ export async function rejectInvite(shareId: string): Promise<{ success: boolean;
  * que aceitaram) + tenta ligar o background. NÃO exige contato nem local seguro.
  * Retorna a sessão criada.
  */
-export async function startLiveShare(): Promise<{ success: boolean; session?: SafetySession; error?: string }> {
+export async function startLiveShare(note?: string): Promise<{ success: boolean; session?: SafetySession; error?: string }> {
   try {
     const perm = await Location.requestForegroundPermissionsAsync();
     if (perm.status !== 'granted') {
@@ -256,6 +256,7 @@ export async function startLiveShare(): Promise<{ success: boolean; session?: Sa
       latitude: loc.coords.latitude,
       longitude: loc.coords.longitude,
       batteryLevel: battery,
+      note: note,
     });
 
     // tenta background; se a permissão "Sempre" não foi dada, segue limitado (não quebra)

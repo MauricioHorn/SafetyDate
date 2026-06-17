@@ -331,3 +331,47 @@ export async function sendLinkToPrimaryContact(): Promise<{ success: boolean; no
     return { success: false, error: 'Não foi possível enviar o link.' };
   }
 }
+
+export interface FriendSharingWithMe {
+  share_id: string;
+  friend_id: string;
+  friend_name: string | null;
+  is_online: boolean;
+}
+
+export interface FriendIShareWith {
+  share_id: string;
+  friend_id: string;
+  friend_name: string | null;
+  status: 'pending' | 'accepted' | 'rejected';
+}
+
+/** Amigas que compartilham comigo (que eu vejo). */
+export async function getFriendsSharingWithMe(): Promise<FriendSharingWithMe[]> {
+  const { data, error } = await supabase.rpc('get_friends_sharing_with_me');
+  if (error) {
+    console.log('[location-share] getFriendsSharingWithMe erro:', error);
+    return [];
+  }
+  return (data ?? []) as FriendSharingWithMe[];
+}
+
+/** Pessoas com quem eu compartilho (que me veem). */
+export async function getFriendsIShareWith(): Promise<FriendIShareWith[]> {
+  const { data, error } = await supabase.rpc('get_friends_i_share_with');
+  if (error) {
+    console.log('[location-share] getFriendsIShareWith erro:', error);
+    return [];
+  }
+  return (data ?? []) as FriendIShareWith[];
+}
+
+/** Remove um compartilhamento (deleta o vínculo). */
+export async function removeShare(shareId: string): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase.from('location_shares').delete().eq('id', shareId);
+  if (error) {
+    console.log('[location-share] removeShare erro:', error);
+    return { success: false, error: 'Não foi possível remover.' };
+  }
+  return { success: true };
+}

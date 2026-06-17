@@ -177,6 +177,10 @@ export default function MapaAmigasScreen() {
             </TouchableOpacity>
           )}
         </View>
+        <TouchableOpacity style={styles.manageFriendsBtn} onPress={() => router.push('/minhas-amigas')}>
+          <Ionicons name="people" size={16} color="#B4B4C7" />
+          <Text style={styles.manageFriendsText}>Minhas amigas</Text>
+        </TouchableOpacity>
         {loading ? (
           <View style={styles.panelContent}>
             <ActivityIndicator size="small" color="#FF4D7E" />
@@ -285,6 +289,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     marginBottom: 14,
+  },
+  manageFriendsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  manageFriendsText: {
+    color: '#B4B4C7',
+    fontSize: 13,
+    fontWeight: '600',
   },
   shareBtn: {
     flex: 1,

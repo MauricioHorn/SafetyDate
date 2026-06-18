@@ -64,6 +64,8 @@ export default function ProfileScreen() {
   }
 
   const isAnnual = profile?.plan === 'annual';
+  const isMonthly = profile?.plan === 'monthly';
+  const isPremium = isAnnual || isMonthly;
   const initials = profile?.full_name
     ?.split(' ')
     .slice(0, 2)
@@ -88,19 +90,19 @@ export default function ProfileScreen() {
 
         <Card style={styles.planCard}>
           <View style={styles.planHeader}>
-            <View style={[styles.planBadge, isAnnual && styles.planBadgeAnnual]}>
+            <View style={[styles.planBadge, isPremium && styles.planBadgeAnnual]}>
               <Ionicons
-                name={isAnnual ? 'diamond' : 'person'}
+                name={isPremium ? 'diamond' : 'person'}
                 size={14}
-                color={isAnnual ? '#fff' : colors.textMuted}
+                color={isPremium ? '#fff' : colors.textMuted}
               />
-              <Text style={[styles.planBadgeText, isAnnual && { color: '#fff' }]}>
-                {isAnnual ? 'PLANO ANUAL ATIVO' : 'CONTA GRATUITA'}
+              <Text style={[styles.planBadgeText, isPremium && { color: '#fff' }]}>
+                {isAnnual ? 'PLANO ANUAL ATIVO' : isMonthly ? 'PLANO MENSAL ATIVO' : 'CONTA GRATUITA'}
               </Text>
             </View>
           </View>
 
-          {isAnnual ? (
+          {isPremium ? (
             <>
               <Text style={styles.planStatTitle}>Buscas ilimitadas</Text>
               <Text style={styles.planStatSubtitle}>

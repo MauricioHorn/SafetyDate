@@ -61,13 +61,13 @@ serve(async (req) => {
       case 'RENEWAL':
       case 'PRODUCT_CHANGE':
       case 'UNCANCELLATION': {
-        // Assinatura ativa → plano = annual
+        // Assinatura ativa → define plano pelo product_id (mensal ou anual)
         const expiresAt = expirationMs ? new Date(expirationMs).toISOString() : null;
-
+        const planValue = productId === 'elas_pro_monthly' ? 'monthly' : 'annual';
         await supabase
           .from('profiles')
           .update({
-            plan: 'annual',
+            plan: planValue,
             plan_expires_at: expiresAt,
             updated_at: new Date().toISOString(),
           })

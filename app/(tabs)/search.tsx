@@ -88,16 +88,14 @@ export default function Search() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      // ⚠️ BYPASS TEMPORÁRIO — REMOVER NA FASE 7 (RevenueCat configurado)
       // Verifica premium direto no RevenueCat (fonte da verdade)
-      // const isPremium = await hasActivePremium();
-      //
-      // if (!isPremium) {
-      //   // Redireciona para paywall nativo (In-App Purchase)
-      //   setLoading(false);
-      //   router.push('/paywall');
-      //   return;
-      // }
+      const isPremium = await hasActivePremium();
+      if (!isPremium) {
+        // Redireciona para paywall nativo (In-App Purchase)
+        setLoading(false);
+        router.push('/paywall');
+        return;
+      }
 
       const body = searchMode === 'name_phone'
         ? {

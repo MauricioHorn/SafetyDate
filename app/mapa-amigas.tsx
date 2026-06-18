@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Image,
 } from 'react-native';
 import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +24,8 @@ import {
   sendLinkToPrimaryContact,
 } from '../lib/location-share';
 import { getActiveSession } from '../lib/safety';
+import { supabase } from '../lib/supabase';
+import * as Location from 'expo-location';
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -41,6 +44,8 @@ export default function MapaAmigasScreen() {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
+  const [myProfile, setMyProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
+  const [myCoords, setMyCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView | null>(null);
 
   const load = useCallback(async () => {
@@ -53,6 +58,17 @@ export default function MapaAmigasScreen() {
         const myActive = await getActiveSession();
         setIsSharing(!!myActive);
       } catch {}
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: prof } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single();
+          if (prof) setMyProfile(prof);
+        }
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setMyCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+      } catch (e) {
+        console.log('[mapa-amigas] erro ao carregar meu perfil/posição:', e);
+      }
       try {
         const invites = await getPendingInvites();
         setPendingCount(invites.length);
@@ -139,8 +155,29 @@ export default function MapaAmigasScreen() {
           latitudeDelta: 0.1,
           longitudeDelta: 0.1,
         }}
-        showsUserLocation
       >
+        {myCoords && (
+          <Marker coordinate={myCoords}>
+            <View style={styles.meMarker}>
+              {myProfile?.avatar_url ? (
+                <Image source={{ uri: myProfile.avatar_url }} style={styles.meMarkerImg} />
+              ) : (
+                <View style={styles.meMarkerFallback}>
+                  <Text style={styles.meMarkerLetter}>{(myProfile?.full_name || 'V').trim().charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+            <Callout tooltip>
+              <View style={styles.callout}>
+                {myProfile?.avatar_url ? (
+                  <Image source={{ uri: myProfile.avatar_url }} style={styles.calloutAvatar} />
+                ) : null}
+                <Text style={styles.calloutName}>{myProfile?.full_name || 'Você'}</Text>
+                <Text style={styles.calloutStatus}>Você está aqui</Text>
+              </View>
+            </Callout>
+          </Marker>
+        )}
         {friends.map((f) => {
           const statusLine = f.battery_level != null ? `Bateria ${f.battery_level}%` : '';
           return (
@@ -151,6 +188,9 @@ export default function MapaAmigasScreen() {
             >
               <Callout tooltip>
                 <View style={styles.callout}>
+                  {f.avatar_url ? (
+                    <Image source={{ uri: f.avatar_url }} style={styles.calloutAvatar} />
+                  ) : null}
                   <Text style={styles.calloutName}>{f.full_name || 'Amiga'}</Text>
                   {f.note ? <Text style={styles.calloutNote}>{f.note}</Text> : null}
                   {statusLine ? <Text style={styles.calloutStatus}>{statusLine}</Text> : null}
@@ -496,6 +536,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2A2A42',
   },
+  calloutAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignSelf: 'center',
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: '#FF4D7E',
+  },
   calloutName: {
     fontSize: 15,
     fontWeight: '800',
@@ -513,4 +562,19 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: '#B4B4C7',
   },
+  meMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  meMarkerImg: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 3, borderColor: '#3B82F6',
+  },
+  meMarkerFallback: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: '#FFFFFF',
+  },
+  meMarkerLetter: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
 });

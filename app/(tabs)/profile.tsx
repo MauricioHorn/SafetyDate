@@ -8,6 +8,7 @@ import {
   Pressable,
   Linking,
   Modal,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,9 +75,13 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          {profile?.avatar_url ? (
+            <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
           <Text style={styles.name}>{profile?.full_name || 'Usuária'}</Text>
           <Text style={styles.email}>{profile?.email}</Text>
         </View>
@@ -124,7 +129,7 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Conta</Text>
 
-          <MenuItem icon="person-outline" label="Editar perfil" onPress={() => {}} />
+          <MenuItem icon="person-outline" label="Editar perfil" onPress={() => router.push('/editar-perfil')} />
           <MenuItem icon="card-outline" label="Método de pagamento" onPress={() => {}} />
           <MenuItem icon="receipt-outline" label="Minhas faturas" onPress={() => {}} />
         </View>
@@ -414,6 +419,11 @@ const styles = StyleSheet.create({
     width: 88, height: 88, borderRadius: 44,
     backgroundColor: colors.primarySubtle,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: colors.primary,
+    marginBottom: spacing.md,
+  },
+  avatarImg: {
+    width: 88, height: 88, borderRadius: 44,
     borderWidth: 2, borderColor: colors.primary,
     marginBottom: spacing.md,
   },

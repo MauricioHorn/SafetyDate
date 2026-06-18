@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,8 +21,11 @@ import {
   removeShare,
 } from '../lib/location-share';
 
-function Avatar({ name }: { name: string | null }) {
+function Avatar({ name, url }: { name: string | null; url?: string | null }) {
   const letter = (name || '?').trim().charAt(0).toUpperCase();
+  if (url) {
+    return <Image source={{ uri: url }} style={styles.avatar} />;
+  }
   return (
     <View style={styles.avatar}>
       <Text style={styles.avatarText}>{letter}</Text>
@@ -100,7 +104,7 @@ export default function MinhasAmigasScreen() {
         ) : (
           seeing.map((f) => (
             <View key={f.share_id} style={styles.card}>
-              <Avatar name={f.friend_name} />
+              <Avatar name={f.friend_name} url={f.avatar_url} />
               <View style={styles.cardMid}>
                 <Text style={styles.name}>{f.friend_name || 'Amiga'}</Text>
                 <View style={styles.statusRow}>
@@ -123,7 +127,7 @@ export default function MinhasAmigasScreen() {
         ) : (
           sharing.map((f) => (
             <View key={f.share_id} style={styles.card}>
-              <Avatar name={f.friend_name} />
+              <Avatar name={f.friend_name} url={f.avatar_url} />
               <View style={styles.cardMid}>
                 <Text style={styles.name}>{f.friend_name || 'Amiga'}</Text>
                 <Text style={styles.statusText}>

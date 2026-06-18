@@ -172,6 +172,7 @@ export interface LiveFriend {
   battery_level: number | null;
   last_update: string;
   note: string | null;
+  avatar_url: string | null;
 }
 
 /**
@@ -372,6 +373,7 @@ export interface FriendSharingWithMe {
   friend_id: string;
   friend_name: string | null;
   is_online: boolean;
+  avatar_url: string | null;
 }
 
 export interface FriendIShareWith {
@@ -379,6 +381,7 @@ export interface FriendIShareWith {
   friend_id: string;
   friend_name: string | null;
   status: 'pending' | 'accepted' | 'rejected';
+  avatar_url: string | null;
 }
 
 /** Amigas que compartilham comigo (que eu vejo). */

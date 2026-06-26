@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -15,19 +14,21 @@ import { Input } from '@/components/Input';
 import { colors, spacing, typography } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { createVault } from '@/lib/vault';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function VaultCreateScreen() {
+  const { showToast } = useToast();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
     if (password.length < 8) {
-      Alert.alert('Senha fraca', 'A senha precisa ter pelo menos 8 caracteres.');
+      showToast('Senha fraca: A senha precisa ter pelo menos 8 caracteres.', 'error');
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Senhas diferentes', 'As senhas não coincidem.');
+      showToast('Senhas diferentes: As senhas não coincidem.', 'error');
       return;
     }
 
@@ -35,7 +36,7 @@ export default function VaultCreateScreen() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      Alert.alert('Erro', 'Você precisa estar logada para criar o cofre.');
+      showToast('Erro: Você precisa estar logada para criar o cofre.', 'error');
       return;
     }
 
@@ -45,7 +46,7 @@ export default function VaultCreateScreen() {
       router.replace('/vault');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível criar o cofre.';
-      Alert.alert('Erro', message);
+      showToast(`Erro: ${message}`, 'error');
     } finally {
       setLoading(false);
     }

@@ -35,6 +35,7 @@ import {
   getDocumentFromVault,
 } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 type Tab = 'note' | 'photo' | 'document' | 'audio';
 
@@ -53,6 +54,7 @@ const TABS: { id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap }[] =
 
 export default function VaultScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>('note');
   const [items, setItems] = useState<Array<VaultItem & { filename: string; content: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -122,11 +124,11 @@ export default function VaultScreen() {
       setItems(decrypted);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Não foi possível carregar itens.';
-      Alert.alert('Erro', message);
+      showToast(`Erro: ${message}`, 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,9 +186,9 @@ export default function VaultScreen() {
 
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert(
-        'Sem permissão',
-        'O ELAS precisa de permissão pra acessar suas fotos. Vá em Ajustes pra permitir.'
+      showToast(
+        'Sem permissão: O ELAS precisa de permissão pra acessar suas fotos. Vá em Ajustes pra permitir.',
+        'error'
       );
       return;
     }
@@ -206,7 +208,7 @@ export default function VaultScreen() {
       await loadItems(userId, activeTab);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Tente de novo.';
-      Alert.alert('Erro ao salvar foto', message);
+      showToast(`Erro ao salvar foto: ${message}`, 'error');
       setLoading(false);
     }
   };
@@ -239,7 +241,7 @@ export default function VaultScreen() {
       await loadItems(userId, activeTab);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Tente de novo.';
-      Alert.alert('Erro ao salvar documento', message);
+      showToast(`Erro ao salvar documento: ${message}`, 'error');
       setLoading(false);
     }
   };
@@ -267,7 +269,7 @@ export default function VaultScreen() {
       await loadItems(userId, activeTab);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Tente de novo.';
-      Alert.alert('Erro ao salvar áudio', message);
+      showToast(`Erro ao salvar áudio: ${message}`, 'error');
       setLoading(false);
     }
   };
@@ -336,7 +338,7 @@ export default function VaultScreen() {
               await loadItems(userId, activeTab);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Falha ao apagar.';
-              Alert.alert('Erro', message);
+              showToast(`Erro: ${message}`, 'error');
             } finally {
               setBatchActioning(false);
             }
@@ -349,7 +351,10 @@ export default function VaultScreen() {
   const handleBatchShare = async () => {
     if (!userId || selectedIds.size === 0) return;
     if (activeTab !== 'photo' && activeTab !== 'document') {
-      Alert.alert('Em breve', 'Compartilhar em massa só funciona pra fotos e documentos por enquanto.');
+      showToast(
+        'Em breve: Compartilhar em massa só funciona pra fotos e documentos por enquanto.',
+        'success'
+      );
       return;
     }
 
@@ -396,7 +401,7 @@ export default function VaultScreen() {
       }
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Falha ao compartilhar.';
-      Alert.alert('Erro', message);
+      showToast(`Erro: ${message}`, 'error');
     } finally {
       setBatchActioning(false);
     }

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -16,8 +15,10 @@ import { Input } from '@/components/Input';
 import { colors, spacing, typography } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { unlockVault } from '@/lib/vault';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function VaultUnlockScreen() {
+  const { showToast } = useToast();
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +27,7 @@ export default function VaultUnlockScreen() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      Alert.alert('Erro', 'Você precisa estar logada.');
+      showToast('Erro: Você precisa estar logada.', 'error');
       return;
     }
 
@@ -37,9 +38,9 @@ export default function VaultUnlockScreen() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível destrancar.';
       if (message === 'Senha incorreta.') {
-        Alert.alert('Senha incorreta', 'Verifique sua senha e tente novamente.');
+        showToast('Senha incorreta: Verifique sua senha e tente novamente.', 'error');
       } else {
-        Alert.alert('Erro', message);
+        showToast(`Erro: ${message}`, 'error');
       }
     } finally {
       setLoading(false);

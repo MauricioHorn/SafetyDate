@@ -6,9 +6,11 @@ import * as Sharing from 'expo-sharing';
 import { supabase } from '@/lib/supabase';
 import { getDocumentFromVault, deleteDocumentFromVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function VaultDocViewScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ id: string }>();
   const itemId = params.id;
 
@@ -29,7 +31,7 @@ export default function VaultDocViewScreen() {
         setDocInfo(info);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : 'Não foi possível abrir o documento.';
-        Alert.alert('Erro', message);
+        showToast(`Erro: ${message}`, 'error');
         router.back();
       } finally {
         setLoading(false);
@@ -41,7 +43,7 @@ export default function VaultDocViewScreen() {
     if (!docInfo) return;
     const available = await Sharing.isAvailableAsync();
     if (!available) {
-      Alert.alert('Erro', 'Compartilhamento não disponível neste aparelho.');
+      showToast('Erro: Compartilhamento não disponível neste aparelho.', 'error');
       return;
     }
     await Sharing.shareAsync(docInfo.fileUri, {

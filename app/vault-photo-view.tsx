@@ -16,9 +16,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '@/lib/supabase';
 import { getPhotoFromVault, deletePhotoFromVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function VaultPhotoViewScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ id: string }>();
   const itemId = params.id;
 
@@ -42,7 +44,7 @@ export default function VaultPhotoViewScreen() {
         setPhotoUri(dataUri);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : 'Não foi possível abrir a foto.';
-        Alert.alert('Erro', message);
+        showToast(`Erro: ${message}`, 'error');
         router.back();
       } finally {
         setLoading(false);
@@ -67,7 +69,7 @@ export default function VaultPhotoViewScreen() {
 
   const handleSaveToGallery = async () => {
     if (!photoUri) {
-      Alert.alert('Erro', 'Foto não disponível.');
+      showToast('Erro: Foto não disponível.', 'error');
       return;
     }
 
@@ -75,9 +77,9 @@ export default function VaultPhotoViewScreen() {
     try {
       const perm = await MediaLibrary.requestPermissionsAsync(true);
       if (perm.status !== 'granted') {
-        Alert.alert(
-          'Sem permissão',
-          'O ELAS precisa de permissão pra salvar fotos na sua galeria. Você pode permitir nos Ajustes.'
+        showToast(
+          'Sem permissão: O ELAS precisa de permissão pra salvar fotos na sua galeria. Você pode permitir nos Ajustes.',
+          'error'
         );
         return;
       }
@@ -92,10 +94,10 @@ export default function VaultPhotoViewScreen() {
 
       await FileSystem.deleteAsync(tempPath, { idempotent: true }).catch(() => {});
 
-      Alert.alert('Pronto', 'Foto salva na sua galeria.');
+      showToast('Pronto: Foto salva na sua galeria.', 'success');
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Não foi possível salvar.';
-      Alert.alert('Erro ao salvar', message);
+      showToast(`Erro ao salvar: ${message}`, 'error');
     } finally {
       setSavingToGallery(false);
     }

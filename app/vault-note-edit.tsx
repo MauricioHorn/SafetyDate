@@ -20,9 +20,11 @@ import {
   getKeyFromKeychain,
 } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function VaultNoteEditScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ id?: string }>();
   const editingId = params.id;
 
@@ -45,13 +47,13 @@ export default function VaultNoteEditScreen() {
           const items = await listVaultItems(user.id, 'note');
           const item = items.find((i) => i.id === editingId);
           if (!item) {
-            Alert.alert('Erro', 'Nota não encontrada.');
+            showToast('Erro: Nota não encontrada.', 'error');
             router.back();
             return;
           }
           const key = await getKeyFromKeychain(user.id);
           if (!key) {
-            Alert.alert('Erro', 'Cofre trancado.');
+            showToast('Erro: Cofre trancado.', 'error');
             router.back();
             return;
           }
@@ -60,7 +62,7 @@ export default function VaultNoteEditScreen() {
           setContent(noteContent);
         } catch (e: unknown) {
           const message = e instanceof Error ? e.message : 'Não foi possível abrir a nota.';
-          Alert.alert('Erro', message);
+          showToast(`Erro: ${message}`, 'error');
           router.back();
         } finally {
           setLoading(false);
@@ -72,11 +74,11 @@ export default function VaultNoteEditScreen() {
   const handleSave = async () => {
     if (!userId) return;
     if (!title.trim()) {
-      Alert.alert('Erro', 'A nota precisa de um título.');
+      showToast('Erro: A nota precisa de um título.', 'error');
       return;
     }
     if (content.length > 100000) {
-      Alert.alert('Erro', 'A nota está muito grande (limite 100KB).');
+      showToast('Erro: A nota está muito grande (limite 100KB).', 'error');
       return;
     }
     setSaving(true);
@@ -93,7 +95,7 @@ export default function VaultNoteEditScreen() {
       router.back();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Tente de novo.';
-      Alert.alert('Erro ao salvar', message);
+      showToast(`Erro ao salvar: ${message}`, 'error');
     } finally {
       setSaving(false);
     }

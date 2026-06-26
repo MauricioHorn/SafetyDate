@@ -6,6 +6,7 @@ import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-au
 import { supabase } from '@/lib/supabase';
 import { getAudioFromVault, deleteAudioFromVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 function formatTime(seconds: number): string {
   if (!isFinite(seconds) || seconds < 0) return '0:00';
@@ -16,6 +17,7 @@ function formatTime(seconds: number): string {
 
 export default function VaultAudioViewScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const params = useLocalSearchParams<{ id: string }>();
   const itemId = params.id;
 
@@ -50,7 +52,7 @@ export default function VaultAudioViewScreen() {
         setAudioInfo(info);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : 'Não foi possível abrir o áudio.';
-        Alert.alert('Erro', message);
+        showToast(`Erro: ${message}`, 'error');
         router.back();
       } finally {
         setLoading(false);

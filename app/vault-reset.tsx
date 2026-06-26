@@ -5,9 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { resetVault } from '@/lib/vault';
 import { colors, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function VaultResetScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [acknowledged, setAcknowledged] = useState(false);
   const [resetting, setResetting] = useState(false);
 
@@ -25,19 +27,19 @@ export default function VaultResetScreen() {
             try {
               const { data: { user } } = await supabase.auth.getUser();
               if (!user) {
-                Alert.alert('Erro', 'Sessão expirada.');
+                showToast('Erro: Sessão expirada.', 'error');
                 router.replace('/login');
                 return;
               }
               await resetVault(user.id);
-              Alert.alert(
-                'Cofre resetado',
-                'Tudo foi apagado. Você pode criar uma senha nova agora.',
-                [{ text: 'OK', onPress: () => router.replace('/vault-create') }]
+              showToast(
+                'Cofre resetado: Tudo foi apagado. Você pode criar uma senha nova agora.',
+                'success'
               );
+              router.replace('/vault-create');
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Não foi possível resetar.';
-              Alert.alert('Erro', message);
+              showToast(`Erro: ${message}`, 'error');
               setResetting(false);
             }
           },

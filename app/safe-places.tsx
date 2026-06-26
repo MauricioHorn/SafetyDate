@@ -23,10 +23,12 @@ import {
   addSafePlace,
   deleteSafePlace,
 } from '../lib/safety';
+import { useToast } from '@/contexts/ToastContext';
 
 const EMOJI_OPTIONS = ['🏠', '🏢', '👵', '🏋️', '☕', '🏫', '❤️', '📍'];
 
 export default function SafePlacesScreen() {
+  const { showToast } = useToast();
   const [places, setPlaces] = useState<SafePlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -46,7 +48,7 @@ export default function SafePlacesScreen() {
       const data = await getSafePlaces();
       setPlaces(data);
     } catch {
-      Alert.alert('Erro', 'Não foi possível carregar os locais.');
+      showToast('Não foi possível carregar os locais.', 'error');
     } finally {
       setLoading(false);
     }
@@ -83,11 +85,11 @@ export default function SafePlacesScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'Dê um nome ao local.');
+      showToast('Dê um nome ao local.', 'error');
       return;
     }
     if (!markerPos) {
-      Alert.alert('Atenção', 'Toque no mapa para marcar o local.');
+      showToast('Toque no mapa para marcar o local.', 'error');
       return;
     }
 
@@ -103,7 +105,7 @@ export default function SafePlacesScreen() {
       setShowModal(false);
       await load();
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Não foi possível salvar.');
+      showToast(error.message || 'Não foi possível salvar.', 'error');
     } finally {
       setSaving(false);
     }
@@ -123,7 +125,7 @@ export default function SafePlacesScreen() {
               await deleteSafePlace(place.id);
               await load();
             } catch {
-              Alert.alert('Erro', 'Não foi possível remover.');
+              showToast('Não foi possível remover.', 'error');
             }
           },
         },

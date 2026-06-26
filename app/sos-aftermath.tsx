@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { keepAlertActive, markAsFalseAlarm } from '@/lib/safety';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function SosAftermathScreen() {
+  const { showToast } = useToast();
   const { alertId } = useLocalSearchParams<{ alertId?: string }>();
   const [contactsNotified, setContactsNotified] = useState<number>(0);
   const [loadingAction, setLoadingAction] = useState(false);
@@ -37,7 +39,7 @@ export default function SosAftermathScreen() {
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Failed to mark false alarm:', error);
-      Alert.alert('Erro', 'Nao foi possivel atualizar o status do SOS.');
+      showToast('Nao foi possivel atualizar o status do SOS.', 'error', 5000);
     } finally {
       setLoadingAction(false);
     }
@@ -55,7 +57,7 @@ export default function SosAftermathScreen() {
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Failed to keep alert active:', error);
-      Alert.alert('Erro', 'Nao foi possivel manter o alerta ativo.');
+      showToast('Nao foi possivel manter o alerta ativo.', 'error', 5000);
     } finally {
       setLoadingAction(false);
     }

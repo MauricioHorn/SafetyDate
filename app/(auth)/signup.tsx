@@ -7,8 +7,10 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { supabase } from '@/lib/supabase';
 import { colors, spacing, typography } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function Signup() {
+  const { showToast } = useToast();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,17 +19,17 @@ export default function Signup() {
 
   async function handleSignup() {
     if (!fullName || !email || !password) {
-      Alert.alert('Ops', 'Preencha todos os campos obrigatórios');
+      showToast('Preencha todos os campos obrigatórios', 'error');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Ops', 'Senha deve ter pelo menos 6 caracteres');
+      showToast('Senha deve ter pelo menos 6 caracteres', 'error');
       return;
     }
 
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length < 10 || cleanPhone.length > 15) {
-      Alert.alert('Atenção', 'Informe um celular válido com DDD.');
+      showToast('Informe um celular válido com DDD.', 'error');
       return;
     }
     const normalizedPhone = cleanPhone.startsWith('55')
@@ -45,7 +47,7 @@ export default function Signup() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Erro ao cadastrar', error.message);
+      showToast(error.message, 'error');
       return;
     }
 

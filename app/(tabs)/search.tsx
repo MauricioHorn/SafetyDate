@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import { Input } from '@/components/Input';
 import { supabase } from '@/lib/supabase';
 import { hasActivePremium } from '@/lib/revenuecat';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -31,6 +31,7 @@ function notFoundReasonFromResponse(value: unknown): NotFoundReason {
 }
 
 export default function Search() {
+  const { showToast } = useToast();
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
@@ -63,22 +64,22 @@ export default function Search() {
   async function handleSearch() {
     if (searchMode === 'name_phone') {
       if (name.trim().length < 3) {
-        Alert.alert('Ops', 'Digite o nome completo');
+        showToast('Digite o nome completo', 'error');
         return;
       }
       const cleanedPhone = phone.replace(/\D/g, '');
       if (cleanedPhone.length < 10 || cleanedPhone.length > 11) {
-        Alert.alert('Ops', 'Telefone inválido');
+        showToast('Telefone inválido', 'error');
         return;
       }
       if (birthDate && birthDate.length < 10) {
-        Alert.alert('Ops', 'Data de nascimento inválida');
+        showToast('Data de nascimento inválida', 'error');
         return;
       }
     } else {
       const cleanedCpf = cpf.replace(/\D/g, '');
       if (cleanedCpf.length !== 11) {
-        Alert.alert('Ops', 'CPF inválido');
+        showToast('CPF inválido', 'error');
         return;
       }
     }
@@ -116,7 +117,7 @@ export default function Search() {
       setLoading(false);
 
       if (error) {
-        Alert.alert('Erro na pesquisa', error.message);
+        showToast(error.message, 'error');
         return;
       }
 
@@ -134,7 +135,7 @@ export default function Search() {
     } catch (err) {
       setLoading(false);
       const message = err instanceof Error ? err.message : 'Algo deu errado';
-      Alert.alert('Erro', message);
+      showToast(message, 'error');
     }
   }
 

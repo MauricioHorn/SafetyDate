@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -7,15 +7,17 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { supabase } from '@/lib/supabase';
 import { colors, spacing, typography } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function Login() {
+  const { showToast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
     if (!email || !password) {
-      Alert.alert('Ops', 'Preencha e-mail e senha');
+      showToast('Preencha e-mail e senha', 'error');
       return;
     }
 
@@ -24,7 +26,7 @@ export default function Login() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Erro ao entrar', error.message);
+      showToast(error.message, 'error');
     }
   }
 

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { triggerSOS } from '@/lib/safety';
 import { colors, radius, spacing } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 const TOTAL_SECONDS = 10;
 
 export default function SosCountdownScreen() {
+  const { showToast } = useToast();
   const [secondsLeft, setSecondsLeft] = useState(TOTAL_SECONDS);
   const [submitting, setSubmitting] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -42,7 +44,7 @@ export default function SosCountdownScreen() {
         router.replace({ pathname: '/sos-aftermath', params: { alertId } });
       } catch (error) {
         console.error('Failed to trigger SOS:', error);
-        Alert.alert('Erro', 'Não foi possível disparar o SOS agora.');
+        showToast('Não foi possível disparar o SOS agora.', 'error', 5000);
         router.back();
       } finally {
         setSubmitting(false);

@@ -22,8 +22,10 @@ import {
   deleteEmergencyContact,
   setPrimaryContact,
 } from '../lib/safety';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function EmergencyContactsScreen() {
+  const { showToast } = useToast();
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,7 +41,7 @@ export default function EmergencyContactsScreen() {
       const data = await getEmergencyContacts();
       setContacts(data);
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível carregar os contatos.');
+      showToast('Não foi possível carregar os contatos.', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -54,18 +56,18 @@ export default function EmergencyContactsScreen() {
 
   const handleAdd = async () => {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'Informe o nome do contato.');
+      showToast('Informe o nome do contato.', 'error');
       return;
     }
 
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length < 10 || cleanPhone.length > 15) {
-      Alert.alert('Atenção', 'Informe um telefone válido com DDD.');
+      showToast('Informe um telefone válido com DDD.', 'error');
       return;
     }
 
     if (contacts.length >= 5) {
-      Alert.alert('Limite atingido', 'Máximo de 5 contatos.');
+      showToast('Máximo de 5 contatos.', 'error');
       return;
     }
 
@@ -87,7 +89,7 @@ export default function EmergencyContactsScreen() {
       setShowForm(false);
       await load();
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Não foi possível adicionar.');
+      showToast(error.message || 'Não foi possível adicionar.', 'error');
     } finally {
       setSaving(false);
     }
@@ -99,7 +101,7 @@ export default function EmergencyContactsScreen() {
       await setPrimaryContact(contact.id);
       load();
     } catch {
-      Alert.alert('Erro', 'Não foi possível definir como principal.');
+      showToast('Não foi possível definir como principal.', 'error');
     }
   }
 
@@ -117,7 +119,7 @@ export default function EmergencyContactsScreen() {
               await deleteEmergencyContact(contact.id);
               await load();
             } catch {
-              Alert.alert('Erro', 'Não foi possível remover.');
+              showToast('Não foi possível remover.', 'error');
             }
           },
         },

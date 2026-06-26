@@ -1,7 +1,6 @@
 import { supabase } from './supabase';
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
-import NetInfo from '@react-native-community/netinfo';
 import * as SMS from 'expo-sms';
 import { Linking } from 'react-native';
 async function invokeSosEdgeFunction(
@@ -367,9 +366,6 @@ export async function triggerSOS(): Promise<string> {
   const batteryRaw = await Battery.getBatteryLevelAsync().catch(() => null);
   const batteryLevel = batteryRaw !== null ? Math.round(batteryRaw * 100) : undefined;
 
-  const networkState = await NetInfo.fetch();
-  const hasInternet = Boolean(networkState.isConnected && networkState.isInternetReachable !== false);
-
   const contacts = await getEmergencyContacts();
   const prioritizedContact = contacts.find((c) => c.is_primary) || contacts[0];
   const activeSession = await getActiveSession();
@@ -411,15 +407,6 @@ export async function triggerSOS(): Promise<string> {
     alert_id: alertData.id,
     user_id: user.id,
   });
-
-  await Promise.all([
-    hasInternet && prioritizedContact
-      ? openWhatsAppPriority(prioritizedContact, locationData)
-      : Promise.resolve(),
-    !hasInternet && contacts.length > 0
-      ? sendSMSFallback(contacts, locationData)
-      : Promise.resolve(),
-  ]);
 
   return alertData.id;
 }

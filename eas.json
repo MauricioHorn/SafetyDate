@@ -18,7 +18,14 @@
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://dokzmnqkxdphfayvlxka.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRva3ptbnFreGRwaGZheXZseGthIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NzI5OTYsImV4cCI6MjA5MjI0ODk5Nn0.VmzGQLuJdDDyGd_cq0D5nU23U4V6DnATImZvvThKzfs",
+        "EXPO_PUBLIC_REVENUECAT_IOS_KEY": "appl_kdHxuDBnOmZfiJqMbzTmwPMuRsh",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY": "goog_XdEtaqjuSHqTurjwRqphgBTnalf",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "ea2d7190-02dc-4d76-8933-375177a3e304"
+      }
     }
   },
   "submit": {

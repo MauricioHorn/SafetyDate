@@ -9,14 +9,19 @@ import {
   Linking,
   Modal,
   Image,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
+import * as ImagePicker from 'expo-image-picker';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase, Profile } from '@/lib/supabase';
+import { uploadAvatar } from '@/lib/profile';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 import { fetchOffering, PRODUCT_ANNUAL } from '@/lib/revenuecat';
 import { useToast } from '@/contexts/ToastContext';
@@ -25,13 +30,20 @@ const MIN_PANIC_CODE = 4;
 const MAX_PANIC_CODE = 6;
 
 export default function ProfileScreen() {
+  const { showToast } = useToast();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [panicModalVisible, setPanicModalVisible] = useState(false);
   const [hasPanicCode, setHasPanicCode] = useState(false);
   const [annualPriceLabel, setAnnualPriceLabel] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfile();
+    }, [])
+  );
 
   useEffect(() => {
-    loadProfile();
     void refreshPanicCodeStatus();
   }, []);
 
@@ -60,7 +72,38 @@ export default function ProfileScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    setProfile(data);
+    if (!data) return;
+    let avatar_url = data.avatar_url;
+    if (avatar_url) {
+      const base = avatar_url.split('?')[0];
+      avatar_url = `${base}?t=${Date.now()}`;
+    }
+    setProfile({ ...data, avatar_url });
+  }
+
+  async function handlePickPhoto() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showToast('Permissão necessária: Precisamos de acesso às suas fotos para escolher um avatar.', 'error');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploadingPhoto(true);
+    const res = await uploadAvatar(result.assets[0].uri);
+    setUploadingPhoto(false);
+    if (res.success && res.url) {
+      setProfile((prev) => (prev ? { ...prev, avatar_url: res.url } : prev));
+      showToast('Foto atualizada', 'success');
+    } else {
+      showToast(res.error || 'Não foi possível atualizar a foto.', 'error');
+    }
   }
 
   async function handleSignOut() {
@@ -92,13 +135,25 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          {profile?.avatar_url ? (
-            <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initials}</Text>
-            </View>
-          )}
+          <TouchableOpacity
+            onPress={handlePickPhoto}
+            disabled={uploadingPhoto}
+            activeOpacity={0.8}
+            style={styles.avatarTouchable}
+          >
+            {profile?.avatar_url ? (
+              <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+            )}
+            {uploadingPhoto && (
+              <View style={styles.avatarUploading}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            )}
+          </TouchableOpacity>
           <Text style={styles.name}>{profile?.full_name || 'Usuária'}</Text>
           <Text style={styles.email}>{profile?.email}</Text>
         </View>
@@ -435,17 +490,25 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: spacing.xxl },
   header: { alignItems: 'center', padding: spacing.xl },
+  avatarTouchable: {
+    position: 'relative',
+    marginBottom: spacing.md,
+  },
   avatar: {
     width: 88, height: 88, borderRadius: 44,
     backgroundColor: colors.primarySubtle,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: colors.primary,
-    marginBottom: spacing.md,
   },
   avatarImg: {
     width: 88, height: 88, borderRadius: 44,
     borderWidth: 2, borderColor: colors.primary,
-    marginBottom: spacing.md,
+  },
+  avatarUploading: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 44,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { color: colors.primary, fontSize: 28, fontWeight: '800' },
   name: { ...typography.h2, color: colors.text, marginBottom: 4 },

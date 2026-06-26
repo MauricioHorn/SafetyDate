@@ -410,7 +410,8 @@ export default function VaultScreen() {
             ? `${selectedIds.size} selecionado${selectedIds.size === 1 ? '' : 's'}`
             : 'Cofre',
           headerShown: true,
-          headerBackTitle: 'Voltar',
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: '',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           headerLeft: selectionMode

@@ -61,7 +61,8 @@ export default function VaultCreateScreen() {
           options={{
             title: 'Crie seu cofre',
             headerShown: true,
-            headerBackTitle: 'Voltar',
+            headerBackButtonDisplayMode: 'minimal',
+            headerBackTitle: '',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}

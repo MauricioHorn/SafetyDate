@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Stack, useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -152,18 +152,17 @@ export default function EmergencyContactsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.topTitle}>Contatos de Emergência</Text>
+      </View>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1 }}
     >
-      <Stack.Screen
-        options={{
-          title: 'Contatos de Emergência',
-          headerStyle: { backgroundColor: '#0A0A14' },
-          headerTintColor: '#FFFFFF',
-        }}
-      />
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -339,6 +338,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  topTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
   header: { marginBottom: 24 },

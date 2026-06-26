@@ -56,7 +56,8 @@ export default function VaultUnlockScreen() {
           options={{
             title: 'Destranque seu cofre',
             headerShown: true,
-            headerBackTitle: 'Voltar',
+            headerBackButtonDisplayMode: 'minimal',
+            headerBackTitle: '',
             headerStyle: { backgroundColor: colors.background },
             headerTintColor: colors.text,
           }}

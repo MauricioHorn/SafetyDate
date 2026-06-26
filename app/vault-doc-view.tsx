@@ -68,7 +68,16 @@ export default function VaultDocViewScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <Stack.Screen options={{ title: 'Documento', headerBackTitle: 'Voltar', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text }} />
+        <Stack.Screen
+          options={{
+            title: 'Documento',
+            headerShown: true,
+            headerBackButtonDisplayMode: 'minimal',
+            headerBackTitle: '',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={styles.loadingText}>Descriptografando...</Text>
       </View>
@@ -77,7 +86,16 @@ export default function VaultDocViewScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Documento', headerBackTitle: 'Voltar', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text }} />
+      <Stack.Screen
+        options={{
+          title: 'Documento',
+          headerShown: true,
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: '',
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+        }}
+      />
 
       <View style={styles.docPreview}>
         <Ionicons name="document-text" size={80} color={colors.primary} />

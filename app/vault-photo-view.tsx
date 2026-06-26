@@ -107,7 +107,8 @@ export default function VaultPhotoViewScreen() {
         options={{
           title: 'Foto',
           headerShown: true,
-          headerBackTitle: 'Voltar',
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: '',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

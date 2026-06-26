@@ -52,7 +52,8 @@ export default function VaultResetScreen() {
         options={{
           title: 'Resetar Cofre',
           headerShown: true,
-          headerBackTitle: 'Voltar',
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: '',
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
         }}

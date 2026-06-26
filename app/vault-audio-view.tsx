@@ -115,7 +115,16 @@ export default function VaultAudioViewScreen() {
   if (loading || !audioInfo) {
     return (
       <View style={styles.center}>
-        <Stack.Screen options={{ title: 'Áudio', headerBackTitle: 'Voltar', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text }} />
+        <Stack.Screen
+          options={{
+            title: 'Áudio',
+            headerShown: true,
+            headerBackButtonDisplayMode: 'minimal',
+            headerBackTitle: '',
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+          }}
+        />
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={styles.loadingText}>Descriptografando...</Text>
       </View>
@@ -128,7 +137,16 @@ export default function VaultAudioViewScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Áudio', headerBackTitle: 'Voltar', headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text }} />
+      <Stack.Screen
+        options={{
+          title: 'Áudio',
+          headerShown: true,
+          headerBackButtonDisplayMode: 'minimal',
+          headerBackTitle: '',
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.text,
+        }}
+      /> />
 
       <View style={styles.content}>
         <View style={styles.iconWrap}>

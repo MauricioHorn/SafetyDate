@@ -207,6 +207,11 @@ export async function startSafetySession(params: {
   longitude: number;
   batteryLevel?: number;
   note?: string;
+  arrivalEnabled?: boolean;
+  arrivalWindowStart?: string;
+  arrivalWindowEnd?: string;
+  arrivalHomePlaceId?: string;
+  arrivalGraceMinutes?: number;
 }): Promise<SafetySession> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -218,15 +223,33 @@ export async function startSafetySession(params: {
     .eq('user_id', user.id)
     .is('ended_at', null);
 
+  const insertRow: Record<string, unknown> = {
+    user_id: user.id,
+    current_latitude: params.latitude,
+    current_longitude: params.longitude,
+    battery_level: params.batteryLevel,
+    note: params.note || null,
+  };
+
+  if (params.arrivalEnabled) {
+    insertRow.arrival_enabled = true;
+    if (params.arrivalWindowStart !== undefined) {
+      insertRow.arrival_window_start = params.arrivalWindowStart;
+    }
+    if (params.arrivalWindowEnd !== undefined) {
+      insertRow.arrival_window_end = params.arrivalWindowEnd;
+    }
+    if (params.arrivalHomePlaceId !== undefined) {
+      insertRow.arrival_home_place_id = params.arrivalHomePlaceId;
+    }
+    if (params.arrivalGraceMinutes !== undefined) {
+      insertRow.arrival_grace_minutes = params.arrivalGraceMinutes;
+    }
+  }
+
   const { data, error } = await supabase
     .from('safety_sessions')
-    .insert({
-      user_id: user.id,
-      current_latitude: params.latitude,
-      current_longitude: params.longitude,
-      battery_level: params.batteryLevel,
-      note: params.note || null,
-    })
+    .insert(insertRow)
     .select()
     .single();
 

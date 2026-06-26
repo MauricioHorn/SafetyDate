@@ -263,12 +263,23 @@ async function invokeLivePush(sessionId: string, userId: string, note?: string):
   }
 }
 
+export interface LiveShareArrival {
+  enabled: boolean;
+  windowStart: string;
+  windowEnd: string;
+  homePlaceId: string;
+  graceMinutes: number;
+}
+
 /**
  * Ativa o compartilhamento ao vivo: liga a sessão (aparece no mapa das amigas
  * que aceitaram) + tenta ligar o background. NÃO exige contato nem local seguro.
  * Retorna a sessão criada.
  */
-export async function startLiveShare(note?: string): Promise<{ success: boolean; session?: SafetySession; error?: string }> {
+export async function startLiveShare(
+  note?: string,
+  arrival?: LiveShareArrival
+): Promise<{ success: boolean; session?: SafetySession; error?: string }> {
   try {
     const perm = await Location.requestForegroundPermissionsAsync();
     if (perm.status !== 'granted') {
@@ -286,6 +297,15 @@ export async function startLiveShare(note?: string): Promise<{ success: boolean;
       longitude: loc.coords.longitude,
       batteryLevel: battery,
       note: note,
+      ...(arrival?.enabled
+        ? {
+            arrivalEnabled: true,
+            arrivalWindowStart: arrival.windowStart,
+            arrivalWindowEnd: arrival.windowEnd,
+            arrivalHomePlaceId: arrival.homePlaceId,
+            arrivalGraceMinutes: arrival.graceMinutes,
+          }
+        : {}),
     });
 
     // tenta background; se a permissão "Sempre" não foi dada, segue limitado (não quebra)

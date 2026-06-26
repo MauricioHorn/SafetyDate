@@ -18,6 +18,8 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase, Profile } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+import { fetchOffering, PRODUCT_ANNUAL } from '@/lib/revenuecat';
+import { useToast } from '@/contexts/ToastContext';
 const PANIC_CODE_KEY = 'elas_panic_code';
 const MIN_PANIC_CODE = 4;
 const MAX_PANIC_CODE = 6;
@@ -26,10 +28,23 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [panicModalVisible, setPanicModalVisible] = useState(false);
   const [hasPanicCode, setHasPanicCode] = useState(false);
+  const [annualPriceLabel, setAnnualPriceLabel] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfile();
     void refreshPanicCodeStatus();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const off = await fetchOffering();
+      const annual = off?.availablePackages.find(
+        (p) => p.product.identifier === PRODUCT_ANNUAL
+      );
+      if (annual) {
+        setAnnualPriceLabel(annual.product.priceString);
+      }
+    })();
   }, []);
 
   async function refreshPanicCodeStatus() {
@@ -119,7 +134,9 @@ export default function ProfileScreen() {
             <>
               <Text style={styles.planStatTitle}>Desbloqueie buscas ilimitadas</Text>
               <Text style={styles.planStatSubtitle}>
-                Por apenas R$ 97/ano — menos de R$ 9/mês
+                {annualPriceLabel
+                  ? `${annualPriceLabel}/ano no plano anual`
+                  : 'Veja os planos disponíveis'}
               </Text>
               <View style={{ marginTop: spacing.md }}>
                 <Button label="Assinar plano anual" onPress={() => router.push('/paywall')} />
@@ -188,6 +205,7 @@ function PanicCodeModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { showToast } = useToast();
   const [step, setStep] = useState<'menu' | 'enter' | 'confirm'>('enter');
   const [firstCode, setFirstCode] = useState('');
   const [confirmCode, setConfirmCode] = useState('');
@@ -227,7 +245,7 @@ function PanicCodeModal({
       return;
     }
     if (code !== firstCode) {
-      Alert.alert('Códigos diferentes', 'Digite o mesmo código nas duas etapas.');
+      showToast('Códigos diferentes: Digite o mesmo código nas duas etapas.', 'error');
       setConfirmCode('');
       return;
     }
@@ -235,9 +253,9 @@ function PanicCodeModal({
     try {
       await SecureStore.setItemAsync(PANIC_CODE_KEY, code);
       onSaved();
-      Alert.alert('Pronto', 'Senha de emergência salva neste aparelho.');
+      showToast('Senha de emergência salva neste aparelho.', 'success');
     } catch {
-      Alert.alert('Erro', 'Não foi possível salvar. Tente novamente.');
+      showToast('Não foi possível salvar. Tente novamente.', 'error');
     } finally {
       setSaving(false);
     }
@@ -245,7 +263,7 @@ function PanicCodeModal({
 
   const handleConfirmLength = () => {
     if (activeCode.length < MIN_PANIC_CODE) {
-      Alert.alert('Código curto', `Use entre ${MIN_PANIC_CODE} e ${MAX_PANIC_CODE} dígitos.`);
+      showToast(`Código curto: Use entre ${MIN_PANIC_CODE} e ${MAX_PANIC_CODE} dígitos.`, 'error');
       return;
     }
     void advanceStep(activeCode);
@@ -274,9 +292,9 @@ function PanicCodeModal({
             try {
               await SecureStore.deleteItemAsync(PANIC_CODE_KEY);
               onSaved();
-              Alert.alert('Removida', 'Senha de emergência removida.');
+              showToast('Senha de emergência removida.', 'success');
             } catch {
-              Alert.alert('Erro', 'Não foi possível remover.');
+              showToast('Não foi possível remover.', 'error');
             }
           },
         },

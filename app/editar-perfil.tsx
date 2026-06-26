@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Image,
   ScrollView,
@@ -16,8 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { uploadAvatar, updateFullName } from '../lib/profile';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function EditarPerfilScreen() {
+  const { showToast } = useToast();
   const [name, setName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +45,7 @@ export default function EditarPerfilScreen() {
   async function handlePickPhoto() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso às suas fotos para escolher um avatar.');
+      showToast('Permissão necessária: Precisamos de acesso às suas fotos para escolher um avatar.', 'error');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -61,7 +62,7 @@ export default function EditarPerfilScreen() {
     if (res.success && res.url) {
       setAvatarUrl(res.url);
     } else {
-      Alert.alert('Atenção', res.error || 'Não foi possível atualizar a foto.');
+      showToast(res.error || 'Não foi possível atualizar a foto.', 'error');
     }
   }
 
@@ -70,9 +71,10 @@ export default function EditarPerfilScreen() {
     const res = await updateFullName(name);
     setSaving(false);
     if (res.success) {
-      Alert.alert('Pronto', 'Perfil atualizado.', [{ text: 'OK', onPress: () => router.back() }]);
+      showToast('Perfil atualizado.', 'success');
+      setTimeout(() => router.back(), 500);
     } else {
-      Alert.alert('Atenção', res.error || 'Não foi possível salvar.');
+      showToast(res.error || 'Não foi possível salvar.', 'error');
     }
   }
 

@@ -18,8 +18,10 @@ import {
   acceptInvite,
   rejectInvite,
 } from '../lib/location-share';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function ConvitesScreen() {
+  const { showToast } = useToast();
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,7 +33,7 @@ export default function ConvitesScreen() {
       const data = await getPendingInvites();
       setInvites(data);
     } catch {
-      Alert.alert('Erro', 'Não foi possível carregar os convites.');
+      showToast('Não foi possível carregar os convites.', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -62,12 +64,12 @@ export default function ConvitesScreen() {
     const res = await acceptInvite(invite.share_id, shareBack);
     setBusyId(null);
     if (res.success) {
-      Alert.alert('Pronto!', shareBack
+      showToast(shareBack
         ? 'Vocês agora podem se ver quando ativarem o ao vivo.'
-        : 'Você vai poder ver a localização dela quando ela ativar o ao vivo.');
+        : 'Você vai poder ver a localização dela quando ela ativar o ao vivo.', 'success');
       load();
     } else {
-      Alert.alert('Atenção', res.error || 'Erro ao aceitar.');
+      showToast(res.error || 'Erro ao aceitar.', 'error');
     }
   }
 
@@ -78,7 +80,7 @@ export default function ConvitesScreen() {
     if (res.success) {
       load();
     } else {
-      Alert.alert('Atenção', res.error || 'Erro ao recusar.');
+      showToast(res.error || 'Erro ao recusar.', 'error');
     }
   }
 

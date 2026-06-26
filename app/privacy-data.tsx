@@ -17,10 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 const DANGER_RED = '#F87171';
 
 export default function PrivacyDataScreen() {
+  const { showToast } = useToast();
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,13 +48,13 @@ export default function PrivacyDataScreen() {
       setLoading(true);
       const { error } = await supabase.functions.invoke('delete-account');
       if (error) {
-        Alert.alert('Erro', 'Não foi possível deletar sua conta. Tente novamente ou fale com o suporte.');
+        showToast('Não foi possível deletar sua conta. Tente novamente ou fale com o suporte.', 'error');
         return;
       }
       setDeleteModalVisible(false);
       await supabase.auth.signOut();
     } catch {
-      Alert.alert('Erro', 'Algo deu errado ao deletar sua conta.');
+      showToast('Algo deu errado ao deletar sua conta.', 'error');
     } finally {
       setLoading(false);
     }

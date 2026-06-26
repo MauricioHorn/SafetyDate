@@ -14,8 +14,10 @@ import {
   PRODUCT_MONTHLY,
 } from '@/lib/revenuecat';
 import { colors, spacing, typography, radius } from '@/lib/theme';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function Paywall() {
+  const { showToast } = useToast();
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [selectedPkg, setSelectedPkg] = useState<PurchasesPackage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export default function Paywall() {
         [{ text: 'Começar a usar', onPress: () => router.replace('/(tabs)') }]
       );
     } else {
-      Alert.alert('Erro no pagamento', result.error || 'Tente novamente mais tarde');
+      showToast(result.error || 'Erro no pagamento. Tente novamente mais tarde', 'error');
     }
   }
 
@@ -70,10 +72,7 @@ export default function Paywall() {
         { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
     } else {
-      Alert.alert(
-        'Nenhuma compra encontrada',
-        'Não localizamos nenhuma compra anterior nesta conta.'
-      );
+      showToast('Nenhuma compra encontrada. Não localizamos nenhuma compra anterior nesta conta.', 'error');
     }
   }
 

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -17,8 +16,10 @@ import {
   getContactsWithAppStatus,
   inviteFriend,
 } from '../lib/location-share';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function AdicionarAmigaScreen() {
+  const { showToast } = useToast();
   const [items, setItems] = useState<ContactWithApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,7 +31,7 @@ export default function AdicionarAmigaScreen() {
       const data = await getContactsWithAppStatus();
       setItems(data);
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível carregar os contatos.');
+      showToast('Não foi possível carregar os contatos.', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -49,10 +50,10 @@ export default function AdicionarAmigaScreen() {
     const res = await inviteFriend(item.appUserId);
     setInvitingId(null);
     if (res.success) {
-      Alert.alert('Convite enviado!', `${item.contact.name} vai poder ver sua localização quando aceitar e você ligar o compartilhamento.`);
+      showToast(`Convite enviado! ${item.contact.name} vai poder ver sua localização quando aceitar e você ligar o compartilhamento.`, 'success');
       load();
     } else {
-      Alert.alert('Atenção', res.error || 'Não foi possível enviar.');
+      showToast(res.error || 'Não foi possível enviar.', 'error');
     }
   }
 

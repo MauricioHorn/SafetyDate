@@ -20,6 +20,7 @@ import {
   getFriendsIShareWith,
   removeShare,
 } from '../lib/location-share';
+import { useToast } from '@/contexts/ToastContext';
 
 function Avatar({ name, url }: { name: string | null; url?: string | null }) {
   const letter = (name || '?').trim().charAt(0).toUpperCase();
@@ -34,6 +35,7 @@ function Avatar({ name, url }: { name: string | null; url?: string | null }) {
 }
 
 export default function MinhasAmigasScreen() {
+  const { showToast } = useToast();
   const [seeing, setSeeing] = useState<FriendSharingWithMe[]>([]);
   const [sharing, setSharing] = useState<FriendIShareWith[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export default function MinhasAmigasScreen() {
       setSeeing(a);
       setSharing(b);
     } catch {
-      Alert.alert('Erro', 'Não foi possível carregar.');
+      showToast('Não foi possível carregar.', 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -67,7 +69,7 @@ export default function MinhasAmigasScreen() {
           onPress: async () => {
             const res = await removeShare(shareId);
             if (res.success) load();
-            else Alert.alert('Atenção', res.error || 'Erro.');
+            else showToast(res.error || 'Erro.', 'error');
           },
         },
       ]

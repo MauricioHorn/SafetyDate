@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  Alert,
   Modal,
   TextInput,
   Image,
@@ -26,6 +25,7 @@ import {
 import { getActiveSession } from '../lib/safety';
 import { supabase } from '../lib/supabase';
 import * as Location from 'expo-location';
+import { useToast } from '@/contexts/ToastContext';
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -47,6 +47,7 @@ export default function MapaAmigasScreen() {
   const [myProfile, setMyProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
   const [myCoords, setMyCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const mapRef = useRef<MapView | null>(null);
+  const { showToast } = useToast();
 
   const load = useCallback(async () => {
     try {
@@ -110,7 +111,7 @@ export default function MapaAmigasScreen() {
       setBusy(true);
       const res = await stopLiveShare();
       if (res.success) setIsSharing(false);
-      else Alert.alert('Atenção', res.error || 'Erro ao parar.');
+      else showToast(res.error || 'Erro ao parar.', 'error');
       setBusy(false);
     } else {
       // vai ativar: abre o modal pra escrever o aviso
@@ -125,9 +126,9 @@ export default function MapaAmigasScreen() {
     const res = await startLiveShare(noteText.trim() || undefined);
     if (res.success) {
       setIsSharing(true);
-      Alert.alert('Você está ao vivo', 'Suas amigas que aceitaram já podem ver sua localização no mapa.');
+      showToast('Você está ao vivo — suas amigas já podem ver sua localização', 'success');
     } else {
-      Alert.alert('Atenção', res.error || 'Não foi possível ativar.');
+      showToast(res.error || 'Não foi possível ativar.', 'error');
     }
     setBusy(false);
   }
@@ -135,9 +136,9 @@ export default function MapaAmigasScreen() {
   async function handleSendLink() {
     const res = await sendLinkToPrimaryContact();
     if (res.noContact) {
-      Alert.alert('Cadastre um contato', 'Você ainda não tem um contato de confiança cadastrado para enviar o link.');
+      showToast('Você ainda não tem um contato de confiança cadastrado para enviar o link.', 'error');
     } else if (!res.success) {
-      Alert.alert('Atenção', res.error || 'Não foi possível enviar.');
+      showToast(res.error || 'Não foi possível enviar.', 'error');
     }
   }
 

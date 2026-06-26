@@ -12,13 +12,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { Button } from '@/components/Button';
+import { useToast } from '@/contexts/ToastContext';
 import { colors, spacing, typography, radius } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 
@@ -201,25 +201,7 @@ export default function FakeCallSetupScreen() {
   const [audioOn, setAudioOn] = useState(true);
   const [scheduling, setScheduling] = useState(false);
   const minutesInputRef = useRef<TextInput>(null);
-  const [toastText, setToastText] = useState<string | null>(null);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-
-  const showToast = (message: string) => {
-    setToastText(message);
-    Animated.timing(toastOpacity, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(() => {
-      setTimeout(() => {
-        Animated.timing(toastOpacity, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }).start(() => setToastText(null));
-      }, 2500);
-    });
-  };
+  const { showToast } = useToast();
 
   useEffect(() => {
     attachFakeCallNotificationListeners();
@@ -307,7 +289,7 @@ export default function FakeCallSetupScreen() {
 
       void incrementFakeCallCount();
 
-      showToast(`✓ Ligação agendada para daqui ${mins} min`);
+      showToast(`Ligação agendada para daqui ${mins} min`, 'success');
       setTimeout(() => {
         router.back();
       }, 3000);
@@ -418,11 +400,6 @@ export default function FakeCallSetupScreen() {
           />
         </ScrollView>
       </KeyboardAvoidingView>
-      {toastText && (
-        <Animated.View style={[styles.toast, { opacity: toastOpacity }]} pointerEvents="none">
-          <Text style={styles.toastText}>{toastText}</Text>
-        </Animated.View>
-      )}
     </SafeAreaView>
   );
 }
@@ -523,31 +500,4 @@ const styles = StyleSheet.create({
   toggleTextWrap: { flex: 1 },
   toggleLabel: { ...typography.bodyBold, color: colors.text },
   toggleHint: { ...typography.small, color: colors.textSecondary, marginTop: 2 },
-  toast: {
-    position: 'absolute',
-    bottom: 40,
-    alignSelf: 'center',
-    left: 24,
-    right: 24,
-    backgroundColor: colors.surfaceElevated,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.success,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  toastText: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
 });

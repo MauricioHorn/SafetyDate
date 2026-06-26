@@ -8,6 +8,7 @@ import { initRevenueCat, logoutRevenueCat } from '@/lib/revenuecat';
 import { updateMyLocation } from '@/lib/location-share';
 import { registerForPushNotifications } from '@/lib/push-notifications';
 import { colors } from '@/lib/theme';
+import { ToastProvider } from '@/contexts/ToastContext';
 import { Session } from '@supabase/supabase-js';
 import { useRouter, useSegments } from 'expo-router';
 
@@ -69,15 +70,17 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="sos-countdown" />
-        <Stack.Screen name="sos-aftermath" />
-        <Stack.Screen name="report/[id]" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
-      </Stack>
+      <ToastProvider>
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="sos-countdown" />
+          <Stack.Screen name="sos-aftermath" />
+          <Stack.Screen name="report/[id]" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+        </Stack>
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }

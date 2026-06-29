@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -179,8 +179,19 @@ export default function Paywall() {
           </Text>
 
           <Text style={styles.terms}>
-            Renovação automática. Cancele a qualquer momento nas configurações do seu dispositivo.
+            A assinatura renova automaticamente pelo mesmo período, salvo cancelamento até 24h
+            antes do fim do período. Gerencie ou cancele nos Ajustes do seu dispositivo.
           </Text>
+
+          <View style={styles.legalLinks}>
+            <Pressable onPress={() => Linking.openURL('https://elasapp.com.br/termos')}>
+              <Text style={styles.legalLink}>Termos de Uso</Text>
+            </Pressable>
+            <Text style={styles.legalSeparator}>·</Text>
+            <Pressable onPress={() => Linking.openURL('https://elasapp.com.br/privacidade')}>
+              <Text style={styles.legalLink}>Política de Privacidade</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -346,4 +357,21 @@ const styles = StyleSheet.create({
   restoreText: { ...typography.caption, color: colors.textSecondary, textDecorationLine: 'underline' },
   secure: { ...typography.small, color: colors.textMuted, marginTop: spacing.sm },
   terms: { ...typography.small, color: colors.textMuted, textAlign: 'center' },
+  legalLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  legalLink: {
+    ...typography.small,
+    color: colors.primary,
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    ...typography.small,
+    color: colors.textMuted,
+  },
 });

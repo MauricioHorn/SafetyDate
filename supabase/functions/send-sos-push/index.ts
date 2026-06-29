@@ -31,41 +31,72 @@ serve(async (req: Request) => {
 
     const senderName = profile?.full_name?.split(' ')[0] || 'Alguém';
 
-    const { data: contacts } = await supabase
+    const { data: primaryContact } = await supabase
       .from('emergency_contacts')
-      .select('id')
+      .select('phone')
       .eq('user_id', user_id)
-      .limit(5);
+      .eq('is_primary', true)
+      .limit(1)
+      .maybeSingle();
 
-    const contactIds = (contacts || []).map((contact: { id: string }) => contact.id);
-    if (contactIds.length === 0) {
+    let contactPhone = primaryContact?.phone;
+
+    if (!contactPhone) {
+      const { data: fallbackContact } = await supabase
+        .from('emergency_contacts')
+        .select('phone')
+        .eq('user_id', user_id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      contactPhone = fallbackContact?.phone;
+    }
+
+    if (!contactPhone) {
       return new Response(JSON.stringify({ sent: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { data: recipientTokens } = await supabase
+    const { data: found } = await supabase.rpc('find_user_by_phone', {
+      search_phone: contactPhone,
+    });
+
+    const recipientUserId = found?.[0]?.user_id;
+    if (!recipientUserId) {
+      return new Response(JSON.stringify({ sent: 0, reason: 'contact_no_app' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: tokenRow } = await supabase
       .from('push_tokens')
       .select('expo_push_token')
-      .in('user_id', contactIds);
+      .eq('user_id', recipientUserId)
+      .maybeSingle();
 
-    const messages = (recipientTokens || []).map((tokenRow: { expo_push_token: string }) => ({
+    if (!tokenRow?.expo_push_token) {
+      return new Response(JSON.stringify({ sent: 0, reason: 'no_token' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const messages = [{
       to: tokenRow.expo_push_token,
       sound: 'default',
       title: `🚨 ${senderName} precisa de você!`,
       body: 'Toque pra ver localização',
       data: { alert_id, type: 'sos_alert' },
-    }));
+    }];
 
-    if (messages.length > 0) {
-      await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(messages),
-      });
-    }
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages),
+    });
 
-    return new Response(JSON.stringify({ sent: messages.length }), {
+    return new Response(JSON.stringify({ sent: 1 }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });

@@ -50,18 +50,19 @@ export type VaultItem = {
 };
 
 /**
- * Dispara Face ID/Touch ID/Passcode pra autenticar antes de operações sensíveis.
- * Joga erro se a usuária cancelar ou falhar.
+ * Dispara Face ID/Touch ID quando disponível, antes de operações sensíveis.
+ * Sem hardware ou biometria cadastrada: retorna sem bloquear (senha já validada).
+ * Com biometria disponível: exige authenticateAsync; falha se cancelar ou recusar.
  */
 async function requireBiometricAuth(reason: string): Promise<void> {
   const hasHardware = await LocalAuthentication.hasHardwareAsync();
   if (!hasHardware) {
-    throw new Error('Este aparelho não tem suporte a biometria.');
+    return;
   }
 
   const isEnrolled = await LocalAuthentication.isEnrolledAsync();
   if (!isEnrolled) {
-    throw new Error('Você precisa cadastrar Face ID ou Touch ID nos Ajustes do iPhone.');
+    return;
   }
 
   const result = await LocalAuthentication.authenticateAsync({

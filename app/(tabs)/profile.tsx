@@ -204,6 +204,12 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Conta</Text>
 
           <MenuItem icon="person-outline" label="Editar perfil" onPress={() => router.push('/editar-perfil')} />
+          <MenuItem
+            icon="star-outline"
+            label="Gerenciar assinatura"
+            subtitle={isPremium ? 'Veja seu plano e os disponíveis' : 'Planos e assinatura'}
+            onPress={() => router.push('/paywall')}
+          />
           <MenuItem icon="card-outline" label="Método de pagamento" onPress={() => {}} />
           <MenuItem icon="receipt-outline" label="Minhas faturas" onPress={() => {}} />
         </View>

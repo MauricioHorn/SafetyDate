@@ -23,6 +23,9 @@
         "NSFaceIDUsageDescription": "ELAS usa Face ID pra proteger o seu Cofre. Só você abre os arquivos guardados.",
         "NSPhotoLibraryUsageDescription": "ELAS precisa acessar suas fotos pra você salvar no Cofre. As fotos selecionadas são criptografadas — nem o ELAS pode ver.",
         "NSPhotoLibraryAddUsageDescription": "ELAS pode salvar fotos do Cofre de volta na sua galeria se você pedir.",
+        "NSMicrophoneUsageDescription": "ELAS usa o microfone apenas quando você grava ou reproduz áudio dentro do app.",
+        "NSCameraUsageDescription": "ELAS pode usar a câmera caso você queira adicionar uma foto.",
+        "NSLocationAlwaysUsageDescription": "ELAS precisa da sua localização pra Modo Seguro funcionar mesmo com o app fechado.",
         "NSDocumentsFolderUsageDescription": "ELAS precisa acessar seus documentos pra você salvar no Cofre. Os arquivos são criptografados — nem o ELAS pode ver.",
         "UIBackgroundModes": [
           "location",
@@ -80,7 +83,12 @@
           ]
         }
       ],
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "ELAS usa o microfone apenas quando você grava ou reproduz áudio dentro do app."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
